@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>PANG World Model · PECVD Gap-Fill Simulator</title>
+  <link rel="stylesheet" href="world_model.css" />
+</head>
+<body>
+  <div class="wm-root">
+    <header class="wm-header">
+      <div>
+        <h1>PECVD Gap-Fill World Model</h1>
+        <p class="wm-sub">Turn the knobs; the PANG Brain predicts the fill (physics with calibrated kinetics + neural-net plasma surrogate + Gaussian-process correction learned from wafer data) and the optimizer proposes the next batch. Predictions, not measurements.</p>
+      </div>
+      <div class="wm-header-right">
+        <span id="wmBasis" class="wm-pill">Loading brain…</span>
+        <span class="wm-pill">Static demo</span>
+      </div>
+    </header>
+    <p id="wmStaticNote" class="wm-note" style="margin:-4px 0 12px"></p>
+
+    <div class="wm-tabs" role="tablist" aria-label="World model views">
+      <button type="button" role="tab" id="tab-sim" aria-controls="panel-sim" aria-selected="true" tabindex="0">Gap-fill simulator</button>
+      <button type="button" role="tab" id="tab-kb" aria-controls="panel-kb" aria-selected="false" tabindex="-1">Knowledge base</button>
+    </div>
+
+    <!-- ===================== SIMULATOR ===================== -->
+    <section role="tabpanel" id="panel-sim" aria-labelledby="tab-sim">
+      <div class="wm-sim-grid">
+        <!-- Knobs -->
+        <aside class="wm-card wm-controls" aria-label="Recipe knobs">
+          <div class="wm-row">
+            <span class="wm-label">Goal</span>
+            <div class="wm-seg" role="radiogroup" aria-label="Fill goal">
+              <label><input type="radio" name="goal" value="plug_fill" checked /> Plug fill</label>
+              <label><input type="radio" name="goal" value="partial_fill" /> Partial fill</label>
+            </div>
+          </div>
+          <div class="wm-row">
+            <label class="wm-label" for="wmPreset">Start from</label>
+            <select id="wmPreset"></select>
+          </div>
+          <div id="wmKnobs" class="wm-knobs"></div>
+          <div class="wm-row">
+            <span class="wm-label">Feature geometry</span>
+            <div class="wm-seg" role="radiogroup" aria-label="Feature geometry">
+              <label><input type="radio" name="ftype" value="hole" checked /> Hole</label>
+              <label><input type="radio" name="ftype" value="trench" /> Trench (what-if)</label>
+            </div>
+          </div>
+          <button type="button" id="wmResetKnobs" class="wm-btn">Reset knobs</button>
+        </aside>
+
+        <!-- Cross-section animation -->
+        <div class="wm-card wm-viz">
+          <div class="wm-viz-head">
+            <h2>How the features fill</h2>
+            <span id="wmModeBadge" class="wm-pill"></span>
+          </div>
+          <canvas id="wmCanvas" role="img" aria-label="Animated cross-section of the 110 nm and 225 nm features filling"></canvas>
+          <div class="wm-player">
+            <button type="button" id="wmPlay" class="wm-btn wm-btn-primary" aria-label="Play fill animation">▶ Play fill</button>
+            <label class="wm-time"><span class="wm-sr">Deposition progress</span>
+              <input id="wmTime" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100% of deposition" />
+            </label>
+            <span id="wmTimeLabel" class="wm-mono">t = 100%</span>
+          </div>
+          <p id="wmCanvasText" class="wm-note"></p>
+          <p class="wm-note">Drawing: reduced-order fill model. Sidewalls grow only while connected to the mouth, so keyholes form by themselves; growth shape follows the simulator's depth profile, and the last frame is pinned to the brain's prediction (void top = predicted PH, void width, overburden). Horizontal scale exaggerated. Shaded bracket = PH ± 1σ.</p>
+        </div>
+
+        <!-- Readout -->
+        <aside class="wm-card wm-readout" aria-label="Predicted outcomes" aria-live="polite">
+          <div class="wm-hero">
+            <div class="wm-label">Chance this recipe meets the client spec</div>
+            <div id="wmPspec" class="wm-hero-num">–</div>
+            <div id="wmSpecName" class="wm-note"></div>
+          </div>
+          <ul id="wmSpecLines" class="wm-spec-lines"></ul>
+          <table class="wm-table wm-compact">
+            <caption class="wm-sr">Predicted outcomes</caption>
+            <tbody id="wmOutcomes"></tbody>
+          </table>
+          <h3>How the brain got this number</h3>
+          <div id="wmLayers"></div>
+          <h3>Plasma state (model)</h3>
+          <div id="wmPlasma" class="wm-kv"></div>
+          <div id="wmRules" class="wm-note"></div>
+          <h3>Closest real wafers</h3>
+          <div id="wmNearest"></div>
+        </aside>
+      </div>
+
+      <!-- Sensitivity -->
+      <div class="wm-card">
+        <div class="wm-viz-head">
+          <h2>How the prediction depends on each knob</h2>
+          <div class="wm-filters" role="group" aria-label="Metric">
+            <button type="button" class="wm-chip" data-metric="ph110" aria-pressed="true">PH depth 110 nm</button>
+            <button type="button" class="wm-chip" data-metric="ob" aria-pressed="false">Overburden</button>
+            <button type="button" class="wm-chip" data-metric="crack" aria-pressed="false">Crack risk</button>
+            <button type="button" class="wm-chip" data-metric="p_spec" aria-pressed="false">Chance to meet spec</button>
+            <button type="button" class="wm-chip" data-metric="fill_h" aria-pressed="false">Fill height (partial)</button>
+            <button type="button" id="wmSweepTableToggle" class="wm-btn" aria-pressed="false">Table view</button>
+          </div>
+        </div>
+        <p class="wm-note">Each panel moves one knob across its range with the others held at the current recipe. Line = brain's prediction, band = ±1σ, dot = current value, gray line = client-spec limit.</p>
+        <div id="wmSweeps" class="wm-sweeps"></div>
+        <div id="wmSweepTable" hidden></div>
+      </div>
+
+      <!-- Optimizer -->
+      <div class="wm-card">
+        <div class="wm-viz-head">
+          <h2>Optimizer's next batch</h2>
+          <div class="wm-filters">
+            <label>Batch <select id="wmBatch"><option>3</option><option>6</option><option selected>9</option><option>12</option></select></label>
+            <label>RF <select id="wmFreqFilter"><option value="both">Both</option><option value="27.12">27.12 MHz</option><option value="13.56">13.56 MHz</option></select></label>
+            <label><input type="checkbox" id="wmTwoStep" checked /> Allow 2-step trim</label>
+            <button type="button" id="wmOptimize" class="wm-btn wm-btn-primary">Propose batch</button>
+          </div>
+        </div>
+        <p class="wm-note">Constrained expected improvement × chance to meet spec × information gain, over the same brain. Computed by the full brain when this page was built; filters choose from that batch.</p>
+        <div id="wmOptOut"></div>
+      </div>
+    </section>
+
+    <!-- ===================== KNOWLEDGE BASE ===================== -->
+    <section role="tabpanel" id="panel-kb" aria-labelledby="tab-kb" hidden>
+      <div id="kbTiles" class="wm-tiles"></div>
+
+      <div class="wm-card">
+        <h2>Wafer data the brain learns from</h2>
+        <p class="wm-note">Every record carries its provenance. Only measured wafers are real chamber runs.</p>
+        <div class="wm-table-wrap" tabindex="0" role="region" aria-label="Wafer data">
+          <table class="wm-table"><thead><tr><th>Wafer</th><th>Provenance</th><th>Recipe</th><th>PH 110 nm</th><th>OB</th><th>Defects</th><th>Meets spec</th></tr></thead><tbody id="kbWafers"></tbody></table>
+        </div>
+      </div>
+
+      <div class="wm-card">
+        <div class="wm-viz-head">
+          <h2>Literature &amp; patents</h2>
+          <div class="wm-filters">
+            <label class="wm-sr" for="kbSearch">Search literature</label>
+            <input id="kbSearch" type="search" placeholder="Search title, author, takeaway…" />
+          </div>
+        </div>
+        <div id="kbDomains" class="wm-filters" role="group" aria-label="Domain filter"></div>
+        <div class="wm-table-wrap" tabindex="0" role="region" aria-label="Literature">
+          <table class="wm-table"><thead><tr><th>Source</th><th>Domain</th><th>Takeaway</th><th>Graph nodes</th><th>Status</th></tr></thead><tbody id="kbLit"></tbody></table>
+        </div>
+      </div>
+
+      <div class="wm-card">
+        <h2>Datasets &amp; training tables</h2>
+        <div id="kbDatasets" class="wm-ds-grid"></div>
+      </div>
+
+      <div class="wm-card">
+        <h2>Extracted figures</h2>
+        <div id="kbFigures" class="wm-fig-grid"></div>
+      </div>
+    </section>
+  </div>
+  <div id="wmToast" class="wm-toast" role="status" hidden></div>
+  <script src="world_static.js"></script>
+  <script src="world_model.js"></script>
+</body>
+</html>
