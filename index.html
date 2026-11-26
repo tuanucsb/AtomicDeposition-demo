@@ -4,168 +4,1439 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
-  <title>PANG World Model · PECVD Gap-Fill Simulator</title>
-  <link rel="stylesheet" href="world_model.css" />
+  <title>AtomicDeposition · PANG Brain Studio</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="wm-root">
-    <header class="wm-header">
+  <div class="app-shell">
+    <header class="top-header">
       <div>
-        <h1>PECVD Gap-Fill World Model</h1>
-        <p class="wm-sub">Turn the knobs; the PANG Brain predicts the fill (physics with calibrated kinetics + neural-net plasma surrogate + Gaussian-process correction learned from wafer data) and the optimizer proposes the next batch. Predictions, not measurements.</p>
+        <h1 class="brand-title">AtomicDeposition · PECVD Qualification &amp; World Model Platform</h1>
+        <p class="brand-sub">Self-Service 4-Layer Decision Pyramid · TSMC Requirement Spec → Versioned KB → Multi-Scale Sim → Bayesian DoE → Auto-Graded Convergence</p>
       </div>
-      <div class="wm-header-right">
-        <span id="wmBasis" class="wm-pill">Loading brain…</span>
-        <span class="wm-pill">Static demo</span>
+      <div class="header-actions">
+        <span id="platformModeBadge" class="badge badge-ok mono">Live Cleanroom Platform</span>
+        <div class="mode-switch-group" role="group" aria-label="Interface view mode">
+          <button type="button" id="btnModeGuided" class="mode-switch-btn" aria-pressed="true">★ Guided Product Flow (Steps 0–8)</button>
+          <button type="button" id="btnModeWorkbench" class="mode-switch-btn" aria-pressed="false">⚙ Full 6-Tab Workbench</button>
+        </div>
+        <button type="button" id="btnJumpSprints" class="btn">Product Sprints</button>
+        <button type="button" id="btnGuidedResetTop" class="btn">↺ Restart Guided Demo</button>
+        <span id="advancedHeaderControls" style="display:none; flex-wrap:wrap; align-items:center; gap:0.4rem;">
+          <label id="workspaceSelectWrap" for="workspaceSelect" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.78rem; font-weight:600;">
+            <span>Workspace:</span>
+            <select id="workspaceSelect" name="workspace" style="padding:0.3rem 0.5rem; border-radius:0.4rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+              <option value="live" selected>Live Measured Brain</option>
+              <option value="sandbox">Sandbox Synthetic Lab</option>
+            </select>
+          </label>
+          <button type="button" id="btnHeaderWorldJump" class="btn" title="Jump to Gap-Fill World Model, AFM Scan &amp; 10-Knob Sweeps">World Model &amp; Sweeps →</button>
+          <button type="button" id="btnOpenSchemaModal" class="btn">8-Layer Schema</button>
+          <button type="button" id="btnOpenRuleModal" class="btn" data-live-only>+ Inject Rule</button>
+          <button type="button" id="btnHeaderJumpOpt" class="btn btn-primary">Optimize Next Batch →</button>
+          <button type="button" id="btnResetBrain" class="btn" data-live-only>Reset Seed</button>
+        </span>
       </div>
     </header>
-    <p id="wmStaticNote" class="wm-note" style="margin:-4px 0 12px"></p>
 
-    <div class="wm-tabs" role="tablist" aria-label="World model views">
-      <button type="button" role="tab" id="tab-sim" aria-controls="panel-sim" aria-selected="true" tabindex="0">Gap-fill simulator</button>
-      <button type="button" role="tab" id="tab-kb" aria-controls="panel-kb" aria-selected="false" tabindex="-1">Knowledge base</button>
+    <div id="wmStaticNote" class="static-demo-banner" role="status" hidden></div>
+
+    <div id="sandboxBanner" class="sandbox-banner" role="status" hidden>
+      <div>
+        <strong style="color:var(--warn);">SANDBOX MODE ACTIVE (`data/sandbox/brain_state.json`):</strong>
+        Synthetic campaign packs, generated fake DoE batches, and virtual wafers run exclusively here and never touch your live measured wafer ledger.
+      </div>
+      <button type="button" id="btnReturnLive" class="btn">Switch Back to Live Measured Brain</button>
     </div>
 
-    <!-- ===================== SIMULATOR ===================== -->
-    <section role="tabpanel" id="panel-sim" aria-labelledby="tab-sim">
-      <div class="wm-sim-grid">
-        <!-- Knobs -->
-        <aside class="wm-card wm-controls" aria-label="Recipe knobs">
-          <div class="wm-row">
-            <span class="wm-label">Goal</span>
-            <div class="wm-seg" role="radiogroup" aria-label="Fill goal">
-              <label><input type="radio" name="goal" value="plug_fill" checked /> Plug fill</label>
-              <label><input type="radio" name="goal" value="partial_fill" /> Partial fill</label>
-            </div>
-          </div>
-          <div class="wm-row">
-            <label class="wm-label" for="wmPreset">Start from</label>
-            <select id="wmPreset"></select>
-          </div>
-          <div id="wmKnobs" class="wm-knobs"></div>
-          <div class="wm-row">
-            <span class="wm-label">Feature geometry</span>
-            <div class="wm-seg" role="radiogroup" aria-label="Feature geometry">
-              <label><input type="radio" name="ftype" value="hole" checked /> Hole</label>
-              <label><input type="radio" name="ftype" value="trench" /> Trench (what-if)</label>
-            </div>
-          </div>
-          <button type="button" id="wmResetKnobs" class="wm-btn">Reset knobs</button>
-        </aside>
+    <div id="startupWarnBanner" class="toast-banner" style="border-color:var(--warn);" role="status" hidden></div>
+    <div id="toastBanner" class="toast-banner" role="status" hidden></div>
 
-        <!-- Cross-section animation -->
-        <div class="wm-card wm-viz">
-          <div class="wm-viz-head">
-            <h2>How the features fill</h2>
-            <span id="wmModeBadge" class="wm-pill"></span>
+    <!-- ===================================================================
+         DEFAULT LANDING VIEW: Guided Cleanroom Product Flow (Steps 0–8)
+         =================================================================== -->
+    <main id="guidedProductStudio" class="guided-studio">
+      <nav id="guidedStepperNav" class="guided-stepper" aria-label="Guided qualification workflow">
+        <button type="button" class="guided-step-btn" data-guided-step="0" aria-current="step"><span class="step-dot">0</span><span>Intro &amp; Pyramid</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="1"><span class="step-dot">1</span><span>TSMC Spec</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="2"><span class="step-dot">2</span><span>Load Data</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="3"><span class="step-dot">3</span><span>Knowledge Base</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="4A"><span class="step-dot">4A</span><span>AI &amp; Simulations</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="4B"><span class="step-dot">4B</span><span>Understanding &amp; Figures</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="5"><span class="step-dot">5</span><span>Bayesian Optimize</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="6"><span class="step-dot">6</span><span>Ingest Results</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="7"><span class="step-dot">7</span><span>Update KB</span></button>
+        <button type="button" class="guided-step-btn" data-guided-step="8"><span class="step-dot">8</span><span>Converge &amp; Sign-Off</span></button>
+      </nav>
+      <div id="guidedStageMount" class="guided-stage-card">
+        <div class="guided-step-header">
+          <div>
+            <div class="guided-eyebrow">Loading Guided Qualification Studio</div>
+            <h2 class="guided-title">Initializing 4-Layer PECVD Decision Pyramid &amp; TSMC N2 Sandbox…</h2>
           </div>
-          <canvas id="wmCanvas" role="img" aria-label="Animated cross-section of the 110 nm and 225 nm features filling"></canvas>
-          <div class="wm-player">
-            <button type="button" id="wmPlay" class="wm-btn wm-btn-primary" aria-label="Play fill animation">▶ Play fill</button>
-            <label class="wm-time"><span class="wm-sr">Deposition progress</span>
-              <input id="wmTime" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100% of deposition" />
-            </label>
-            <span id="wmTimeLabel" class="wm-mono">t = 100%</span>
-          </div>
-          <p id="wmCanvasText" class="wm-note"></p>
-          <p class="wm-note">Drawing: reduced-order fill model. Sidewalls grow only while connected to the mouth, so keyholes form by themselves; growth shape follows the simulator's depth profile, and the last frame is pinned to the brain's prediction (void top = predicted PH, void width, overburden). Horizontal scale exaggerated. Shaded bracket = PH ± 1σ.</p>
         </div>
-
-        <!-- Readout -->
-        <aside class="wm-card wm-readout" aria-label="Predicted outcomes" aria-live="polite">
-          <div class="wm-hero">
-            <div class="wm-label">Chance this recipe meets the client spec</div>
-            <div id="wmPspec" class="wm-hero-num">–</div>
-            <div id="wmSpecName" class="wm-note"></div>
-          </div>
-          <ul id="wmSpecLines" class="wm-spec-lines"></ul>
-          <table class="wm-table wm-compact">
-            <caption class="wm-sr">Predicted outcomes</caption>
-            <tbody id="wmOutcomes"></tbody>
-          </table>
-          <h3>How the brain got this number</h3>
-          <div id="wmLayers"></div>
-          <h3>Plasma state (model)</h3>
-          <div id="wmPlasma" class="wm-kv"></div>
-          <div id="wmRules" class="wm-note"></div>
-          <h3>Closest real wafers</h3>
-          <div id="wmNearest"></div>
-        </aside>
       </div>
+    </main>
 
-      <!-- Sensitivity -->
-      <div class="wm-card">
-        <div class="wm-viz-head">
-          <h2>How the prediction depends on each knob</h2>
-          <div class="wm-filters" role="group" aria-label="Metric">
-            <button type="button" class="wm-chip" data-metric="ph110" aria-pressed="true">PH depth 110 nm</button>
-            <button type="button" class="wm-chip" data-metric="ob" aria-pressed="false">Overburden</button>
-            <button type="button" class="wm-chip" data-metric="crack" aria-pressed="false">Crack risk</button>
-            <button type="button" class="wm-chip" data-metric="p_spec" aria-pressed="false">Chance to meet spec</button>
-            <button type="button" class="wm-chip" data-metric="fill_h" aria-pressed="false">Fill height (partial)</button>
-            <button type="button" id="wmSweepTableToggle" class="wm-btn" aria-pressed="false">Table view</button>
-          </div>
-        </div>
-        <p class="wm-note">Each panel moves one knob across its range with the others held at the current recipe. Line = brain's prediction, band = ±1σ, dot = current value, gray line = client-spec limit.</p>
-        <div id="wmSweeps" class="wm-sweeps"></div>
-        <div id="wmSweepTable" hidden></div>
+    <!-- ===================================================================
+         ADVANCED 6-TAB ENGINEERING WORKBENCH (Toggleable anytime from header)
+         =================================================================== -->
+    <div id="advancedWorkbenchWrapper" hidden>
+    <!-- Live Brain Status KPIs -->
+    <section class="kpi-grid" aria-label="PANG Brain telemetry">
+      <div class="card">
+        <div class="kpi-label">Brain Version &amp; Multi-Fidelity Streams</div>
+        <div id="kpiVersion" class="kpi-value">v5</div>
+        <div id="kpiStreams" class="kpi-note">--</div>
       </div>
-
-      <!-- Optimizer -->
-      <div class="wm-card">
-        <div class="wm-viz-head">
-          <h2>Optimizer's next batch</h2>
-          <div class="wm-filters">
-            <label>Batch <select id="wmBatch"><option>3</option><option>6</option><option selected>9</option><option>12</option></select></label>
-            <label>RF <select id="wmFreqFilter"><option value="both">Both</option><option value="27.12">27.12 MHz</option><option value="13.56">13.56 MHz</option></select></label>
-            <label><input type="checkbox" id="wmTwoStep" checked /> Allow 2-step trim</label>
-            <button type="button" id="wmOptimize" class="wm-btn wm-btn-primary">Propose batch</button>
-          </div>
-        </div>
-        <p class="wm-note">Constrained expected improvement × chance to meet spec × information gain, over the same brain. Computed by the full brain when this page was built; filters choose from that batch.</p>
-        <div id="wmOptOut"></div>
+      <div class="card">
+        <div class="kpi-label">Standalone Feature Sim Error → Honest PANG LOOCV</div>
+        <div id="kpiRmse" class="kpi-value">-- → -- nm</div>
+        <div id="kpiRmseNote" class="kpi-note">Refit-per-fold 110nm PH RMSE · Real coupons vs predict-mean baseline</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Epistemic Uncertainty (Mean σ_PH)</div>
+        <div id="kpiUncert" class="kpi-value">-- nm</div>
+        <div id="kpiUncertNote" class="kpi-note">Calibrated across 16 Literature Bonding priors &amp; wafers</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Incumbent Best Measured Coupon</div>
+        <div id="kpiBest" class="kpi-value">--</div>
+        <div id="kpiBestSub" class="kpi-note">Spec: PH ≥ 975 nm, OB ≤ 125 nm, Crack = No</div>
       </div>
     </section>
 
-    <!-- ===================== KNOWLEDGE BASE ===================== -->
-    <section role="tabpanel" id="panel-kb" aria-labelledby="tab-kb" hidden>
-      <div id="kbTiles" class="wm-tiles"></div>
-
-      <div class="wm-card">
-        <h2>Wafer data the brain learns from</h2>
-        <p class="wm-note">Every record carries its provenance. Only measured wafers are real chamber runs.</p>
-        <div class="wm-table-wrap" tabindex="0" role="region" aria-label="Wafer data">
-          <table class="wm-table"><thead><tr><th>Wafer</th><th>Provenance</th><th>Recipe</th><th>PH 110 nm</th><th>OB</th><th>Defects</th><th>Meets spec</th></tr></thead><tbody id="kbWafers"></tbody></table>
-        </div>
+    <!-- Accessible Single-Row Tablist (`P3.1`: Tab 1 Next Round is Default Landing View; Tab 2 is Causal Graph) -->
+    <div class="tabs">
+      <div class="tablist-scroller" role="tablist" focusgroup="tablist nomemory" aria-label="PANG Brain workspaces">
+        <button type="button" role="tab" id="tab-brain" aria-selected="true" tabindex="0" focusgroupstart>1. Next Round · Plan, Spec &amp; Audit</button>
+        <button type="button" role="tab" id="tab-knowledge" aria-selected="false" tabindex="-1">2. World Model, Sweeps, AFM &amp; Causal Graph</button>
+        <button type="button" role="tab" id="tab-sem" aria-selected="false" tabindex="-1">3. Hybrid SEM &amp; Inline AFM Lab</button>
+        <button type="button" role="tab" id="tab-sim" aria-selected="false" tabindex="-1">4. Simulator vs. Brain Explorer</button>
+        <button type="button" role="tab" id="tab-kb-tracker" aria-selected="false" tabindex="-1">5. Knowledge Base &amp; Literature Tracker</button>
+        <button type="button" role="tab" id="tab-ledger" aria-selected="false" tabindex="-1">6. Wafer, Rule &amp; Spec Ledger</button>
       </div>
 
-      <div class="wm-card">
-        <div class="wm-viz-head">
-          <h2>Literature &amp; patents</h2>
-          <div class="wm-filters">
-            <label class="wm-sr" for="kbSearch">Search literature</label>
-            <input id="kbSearch" type="search" placeholder="Search title, author, takeaway…" />
+      <div class="panels-stack">
+        <!-- TAB 1 (DEFAULT): Next Round · Best Measured Wafer, Planned Batch, Spec & Prediction Audit -->
+        <div role="tabpanel" id="panel-brain" aria-labelledby="tab-brain" tabindex="0">
+          <div class="panel-inner" style="display:flex; flex-direction:column; gap:1rem;">
+
+            <!-- 4-Layer PECVD Decision-Making Pyramid + Automatic Data Ingest & Live Spec-Convergence Demo -->
+            <div class="card" id="decisionPyramidCard">
+              <h2 class="section-title">
+                <span>4-Layer PECVD Decision-Making Pyramid · Self-Service Spec Optimization &amp; Auto-Ingest</span>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem;">
+                  <span id="pyramidGateBadge" class="badge badge-warn mono">Gate: Checking…</span>
+                  <button type="button" id="btnScanInboxNow" class="btn" data-live-only style="font-size:0.75rem; padding:0.25rem 0.6rem;">⟳ Scan `data/inbox/` Auto-Ingest</button>
+                  <button type="button" id="btnRunConvergeDemo" class="btn btn-primary" data-live-only style="font-size:0.75rem; padding:0.26rem 0.65rem;">▶ Run Closed-Loop Criteria Demo</button>
+                </div>
+              </h2>
+
+              <div class="pyramid-layout">
+                <div>
+                  <div id="pyramidStackBox" class="pyramid-stack" aria-label="4-layer decision-making pyramid"></div>
+                  <div id="pyramidDecisionNote" class="telemetry-strip mono" style="margin-top:0.55rem; font-size:0.76rem;"></div>
+                </div>
+
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.55rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
+                    <strong style="font-size:0.84rem;">Closed-Loop Criteria Convergence &amp; Auto-Ingest Feed</strong>
+                    <span id="convergeDemoBadge" class="badge mono">Ready</span>
+                  </div>
+                  <p style="margin:0; font-size:0.77rem; color:var(--muted);">
+                    Click <b>▶ Run Closed-Loop Criteria Demo</b> to watch the platform start from failing 13.56 MHz coupons (0% pass), propose 3-wafer rounds, auto-ingest outcomes, check every line of your active <code>ClientSpec</code>, and converge to a passing recipe in an isolated sandbox without touching live data. Or drop cleanroom <code>.csv</code> / <code>.json</code> files into <code>data/inbox/</code> and click <b>Scan Auto-Ingest</b>.
+                  </p>
+                  <div id="convergeDemoOutput" style="font-size:0.77rem; max-block-size:255px; overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 1 (`P3.1`): Best Measured Wafer w/ Spec-Check Lines + Measured-Only Prediction-Log Summary -->
+            <div class="split-grid">
+              <div class="card" style="display:flex; flex-direction:column; gap:0.55rem;">
+                <h2 class="section-title">
+                  <span>Best Measured Wafer vs. Client Spec</span>
+                  <span id="nextRoundIncumbentBadge" class="badge mono">--</span>
+                </h2>
+                <div id="nextRoundIncumbentBox" style="font-size:0.81rem; color:var(--muted);">
+                  Loading measured wafer spec-check status…
+                </div>
+              </div>
+
+              <div class="card" style="display:flex; flex-direction:column; gap:0.55rem;">
+                <h2 class="section-title">
+                  <span>Prediction-Log Summary (Measured Only)</span>
+                  <span id="predAuditBadge" class="badge mono">0 meas graded</span>
+                </h2>
+                <div id="predAuditBox" style="font-size:0.8rem; color:var(--muted);"></div>
+              </div>
+            </div>
+
+            <!-- Row 2 (`P3.1`): Planned Next-Round Batch with Reasons & P(spec) + Exportable Run-Sheet -->
+            <div class="card" style="display:flex; flex-direction:column; gap:0.8rem;">
+              <h2 class="section-title">
+                <span>Planned Next-Round Batch · Fewest Rounds to Client Spec (Reasons &amp; P(spec))</span>
+                <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+                  <button type="button" id="btnPlanThisRound" class="btn btn-primary" style="font-size:0.76rem; padding:0.28rem 0.65rem;">Plan This Round (Log UUIDs)</button>
+                  <button type="button" id="btnExportNextCsv" class="btn" style="font-size:0.76rem; padding:0.28rem 0.6rem;">Export Next DoE (.csv)</button>
+                  <button type="button" id="btnExportNextJson" class="btn" style="font-size:0.76rem; padding:0.28rem 0.6rem;">Export Next DoE (.json)</button>
+                  <button type="button" id="btnExecuteBatchVirtual" class="btn" style="font-size:0.78rem;">▶ Execute Batch in Sandbox Virtual Fab</button>
+                </div>
+              </h2>
+
+              <div style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center; font-size:0.82rem;">
+                <label for="optGoal">Goal:
+                  <select id="optGoal" name="goal" style="padding:0.3rem 0.45rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                    <option value="plug_fill">Seamless Low-OB Plug Fill (110 &amp; 225 nm)</option>
+                    <option value="partial_fill">Clean Recessed Partial Fill (~520 nm)</option>
+                  </select>
+                </label>
+                <label for="optFreq">RF Filter:
+                  <select id="optFreq" name="freq_filter" style="padding:0.3rem 0.45rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                    <option value="both">Both (13.56 &amp; 27.12 MHz)</option>
+                    <option value="27.12">27.12 MHz Only</option>
+                    <option value="13.56">13.56 MHz Only</option>
+                  </select>
+                </label>
+                <label for="optBatch">Batch Size:
+                  <select id="optBatch" name="batch_size" style="padding:0.3rem 0.45rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                    <option value="3">3 wafers</option>
+                    <option value="4" selected>4 wafers</option>
+                    <option value="6">6 wafers</option>
+                    <option value="9">9 wafers</option>
+                    <option value="12">12 wafers</option>
+                  </select>
+                </label>
+                <span class="inline-check">
+                  <input type="checkbox" id="optAllowTrim" name="allow_two_step" checked />
+                  <label for="optAllowTrim">Allow 2-Step Ar/NH₃ Trim (<code>DED</code>)</label>
+                </span>
+                <button type="button" id="btnRefreshOpt" class="btn">Preview Candidates (No Log)</button>
+              </div>
+
+              <div id="recContainer" class="lit-grid"></div>
+
+              <div tabindex="0" role="region" aria-labelledby="doe-runsheet-caption" class="table-wrapper" style="max-block-size:280px;">
+                <table style="--label-2:'Role';--label-3:'Architecture';--label-4:'RF / Power / Gap';--label-5:'P / Ar / C2H2 / NH3';--label-6:'Temp / Dep / Trim';--label-7:'Pred Fill ± σ';--label-8:'Pred OB ± σ';--label-9:'P(Spec)';">
+                  <caption id="doe-runsheet-caption">Next-Round Cleanroom Chamber DoE Run-Sheet (Logged with Suggestion IDs for Closed-Loop Verification)</caption>
+                  <thead>
+                    <tr>
+                      <th>Suggestion ID</th>
+                      <th>DoE Role</th>
+                      <th>Step Architecture</th>
+                      <th>RF / Power / Gap</th>
+                      <th>P / Ar / C₂H₂ / NH₃</th>
+                      <th>T / Dep / Trim</th>
+                      <th>Predicted Fill ± σ</th>
+                      <th>Predicted OB ± σ</th>
+                      <th>P(Meets Spec)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="doeRunSheetBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Row 3: Automated Campaign Phenomenon Diagnosis Report (Appears/Updates on Ingest) -->
+            <div id="campaignReportCard" class="card" hidden>
+              <h2 class="section-title">
+                <span id="campaignReportTitle">Ingested Campaign Phenomenon Analysis &amp; Kinetic Calibration Shift</span>
+                <span id="campaignPassBadge" class="badge mono">--</span>
+              </h2>
+              <div id="campaignSummaryStrip" class="telemetry-strip mono"></div>
+              <div tabindex="0" role="region" aria-labelledby="campaign-diag-caption" class="table-wrapper" style="max-block-size:290px;">
+                <table style="--label-2:'RF / N:C / Trim';--label-3:'OB / Depth';--label-4:'OES & 3w';--label-5:'Film ρ';--label-6:'Spec';--label-7:'Failure Physics';--label-8:'Next-Round Lever';">
+                  <caption id="campaign-diag-caption">Per-Wafer Mechanistic Diagnosis (Knudsen Thiele Φ₁₁₀, Griffith Fracture Energy G, &amp; Bottleneck Lever)</caption>
+                  <thead>
+                    <tr>
+                      <th>Record ID</th>
+                      <th>RF / N:C / Trim</th>
+                      <th>OB / Fill Depth</th>
+                      <th>OES CN/Ar · 3ω</th>
+                      <th>Film ρ</th>
+                      <th>Spec</th>
+                      <th>Dominant Phenomenon</th>
+                      <th>Actionable Lever for Next Round</th>
+                    </tr>
+                  </thead>
+                  <tbody id="campaignDiagBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Row 4: Client Acceptance Spec + Manual Measured Wafer Ingest (Left) & Campaign/Sandbox Ingest (Right) -->
+            <div class="split-grid">
+              <!-- Client Spec Editor & Manual Lab Wafer Ingest -->
+              <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                <h2 id="clientSpecTitle" class="section-title">
+                  <span>Client Acceptance Spec &amp; Measured Lab Wafer Ingest</span>
+                  <span id="specActiveBadge" class="badge badge-ok mono">Active Target</span>
+                </h2>
+                <form id="clientSpecForm" action="/api/spec" method="POST" aria-labelledby="clientSpecTitle">
+                  <div class="form-grid" style="margin:0 0 0.55rem;">
+                    <div class="full">
+                      <label for="specName">Acceptance Spec Name *</label>
+                      <input id="specName" name="name" type="text" value="Default 1.0 µm Carbon Gap-Fill Spec" required />
+                    </div>
+                    <div>
+                      <label for="specPhMin">Min Plug Depth PH₁₁₀/₂₂₅ (nm) *</label>
+                      <span id="specPhHint" class="field-hint">Seamless plug threshold</span>
+                      <input id="specPhMin" name="ph_min_nm" type="number" min="500" max="2000" step="5" value="975" required aria-describedby="specPhHint" data-error="specPhErr" />
+                      <div id="specPhErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter a plug depth between 500 and 2000 nm.</div>
+                    </div>
+                    <div>
+                      <label for="specObMax">Max Overburden Cap (nm) *</label>
+                      <span id="specObMaxHint" class="field-hint">Hard planar OB limit</span>
+                      <input id="specObMax" name="ob_max_nm" type="number" min="20" max="1000" step="5" value="125" required aria-describedby="specObMaxHint" data-error="specObMaxErr" />
+                      <div id="specObMaxErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter an overburden cap between 20 and 1000 nm.</div>
+                    </div>
+                    <div>
+                      <label for="specObTarget">Ideal Overburden Target (nm) *</label>
+                      <span id="specObTgtHint" class="field-hint">Penalty-free OB floor</span>
+                      <input id="specObTarget" name="ob_target_nm" type="number" min="10" max="500" step="5" value="55" required aria-describedby="specObTgtHint" data-error="specObTgtErr" />
+                      <div id="specObTgtErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter a target OB &lt;= Max Overburden Cap.</div>
+                    </div>
+                    <div>
+                      <label for="specDensityMin">Min Film Density (g/cm³)</label>
+                      <span class="field-hint">Blank = optional</span>
+                      <input id="specDensityMin" name="density_min_g_cm3" type="number" min="1.2" max="2.6" step="0.01" placeholder="e.g. 1.75" />
+                    </div>
+                    <div>
+                      <label for="specFillTarget">Partial-Fill Target h* (nm) *</label>
+                      <input id="specFillTarget" name="fill_height_target_nm" type="number" min="100" max="1500" step="10" value="520" required data-error="specFillErr" />
+                      <div id="specFillErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter target height 100–1500 nm.</div>
+                    </div>
+                    <div>
+                      <label for="specFillTol">Partial-Fill Tolerance ±(nm) *</label>
+                      <input id="specFillTol" name="fill_height_tol_nm" type="number" min="10" max="400" step="5" value="60" required data-error="specTolErr" />
+                      <div id="specTolErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter tolerance 10–400 nm.</div>
+                    </div>
+                    <div class="full" style="display:flex; flex-wrap:wrap; gap:1rem; padding-top:0.2rem;">
+                      <span>
+                        <input type="checkbox" id="specCrackAllowed" name="crack_allowed" />
+                        <label for="specCrackAllowed" style="display:inline; font-size:0.8rem;">Allow delamination cracks</label>
+                      </span>
+                      <span>
+                        <input type="checkbox" id="specNoduleAllowed" name="nodule_allowed" />
+                        <label for="specNoduleAllowed" style="display:inline; font-size:0.8rem;">Allow dust nodules</label>
+                      </span>
+                    </div>
+                  </div>
+                  <button type="submit" id="btnSaveClientSpec" class="btn">Save Acceptance Spec &amp; Re-Score Optimizer</button>
+                </form>
+
+                <!-- Manual Lab Wafer Metrology Ingest with Suggestion-ID Picker (`P1.1`) -->
+                <details style="border-top:1px solid var(--border); padding-top:0.55rem;" open>
+                  <summary style="cursor:pointer; font-size:0.82rem; font-weight:600;">Log Single Measured Lab Wafer (Link to Planned Suggestion ID)</summary>
+                  <form id="manualWaferForm" action="/api/ingest/experiment" method="POST" style="margin-top:0.5rem;">
+                    <div class="form-grid" style="margin:0 0 0.55rem;">
+                      <label for="manualExpId">Wafer ID *
+                        <input id="manualExpId" name="exp_id" type="text" placeholder="e.g. LOT2-W01" required autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      </label>
+                      <label for="manualSuggestionId">Planned Suggestion ID
+                        <select id="manualSuggestionId" name="suggestion_id">
+                          <option value="">— None (unlinked wafer) —</option>
+                        </select>
+                      </label>
+                      <label for="manualFreq">RF Freq (MHz)
+                        <select id="manualFreq" name="freq_mhz"><option value="13.56">13.56</option><option value="27.12" selected>27.12</option></select>
+                      </label>
+                      <label for="manualPower">Power (W) *
+                        <input id="manualPower" name="power_w" type="number" min="100" max="5000" step="25" value="1550" required />
+                      </label>
+                      <label for="manualGap">Gap (mils) *
+                        <input id="manualGap" name="gap_mils" type="number" min="10" max="1200" step="5" value="450" required />
+                      </label>
+                      <label for="manualPres">Pressure (Torr) *
+                        <input id="manualPres" name="pressure_torr" type="number" min="0.2" max="100" step="0.1" value="18.5" required />
+                      </label>
+                      <label for="manualAr">Ar (sccm) *
+                        <input id="manualAr" name="ar_sccm" type="number" min="100" max="30000" step="250" value="11000" required />
+                      </label>
+                      <label for="manualC2H2">C₂H₂ (sccm) *
+                        <input id="manualC2H2" name="c2h2_sccm" type="number" min="0" max="3000" step="5" value="620" required />
+                      </label>
+                      <label for="manualNH3">NH₃ (sccm) *
+                        <input id="manualNH3" name="nh3_sccm" type="number" min="0" max="3000" step="5" value="225" required />
+                      </label>
+                      <label for="manualTemp">Temp (°C) *
+                        <input id="manualTemp" name="temp_c" type="number" min="20" max="1000" step="5" value="555" required />
+                      </label>
+                      <label for="manualOb">Measured OB (nm) *
+                        <input id="manualOb" name="ob_nm" type="number" min="0" max="2000" step="0.1" placeholder="e.g. 74" required />
+                      </label>
+                      <label for="manualPh110">Measured 110 nm PH Depth (nm) *
+                        <input id="manualPh110" name="ph_depth_110_nm" type="number" min="0" max="25000" step="0.1" placeholder="e.g. 985" required />
+                      </label>
+                      <label for="manualPh225">Measured 225 nm PH Depth (nm)
+                        <input id="manualPh225" name="ph_depth_225_nm" type="number" min="0" max="25000" step="0.1" placeholder="Blank = null" />
+                      </label>
+                      <label for="manualAfmRms">Inline AFM Rq (nm)
+                        <input id="manualAfmRms" name="afm_rms_nm" type="number" min="0" max="200" step="0.05" placeholder="Blank = null" />
+                      </label>
+                      <label for="manualCrack">Crack Detected
+                        <select id="manualCrack" name="crack_detected">
+                          <option value="" selected>Unmeasured (null)</option>
+                          <option value="false">No (intact)</option>
+                          <option value="true">Yes (crack)</option>
+                        </select>
+                      </label>
+                    </div>
+                    <button type="submit" id="btnSubmitManualWafer" class="btn btn-primary" style="font-size:0.78rem;">Ingest Measured Lab Wafer → Grade &amp; Update Brain</button>
+                  </form>
+                </details>
+              </div>
+
+              <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                <h2 class="section-title">
+                  <span>Upload Lab Campaign or Run Sandbox Synthetic Packs (<code>pang.pecvd.carbon.v2</code>)</span>
+                  <button type="button" id="btnInspectSchemaInline" class="btn" style="font-size:0.76rem; padding:0.25rem 0.55rem;">Inspect 8-Layer Data Model</button>
+                </h2>
+                <p style="margin:0; font-size:0.81rem; color:var(--muted);">
+                  Upload measured <code>.json</code> / <code>.csv</code> campaigns, or explore synthetic packs strictly inside the isolated Sandbox Brain (<code>s1</code>). Unmeasured fields stay <code>null</code>.
+                </p>
+
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
+                  <label for="campaignFileInput" class="btn btn-primary" style="cursor:pointer;">
+                    Upload Campaign (.json / .csv)…
+                    <input type="file" id="campaignFileInput" name="campaign_file" accept=".json,.csv,application/json,text/csv" class="visually-hidden" />
+                  </label>
+                  <a href="#sandbox-only" download="pack1_plug_screening.json" class="btn" style="font-size:0.76rem;">Download Sample JSON</a>
+                  <a href="#sandbox-only" download="pack1_plug_screening.csv" class="btn" style="font-size:0.76rem;">Download Sample CSV</a>
+                </div>
+
+                <div id="presetCampaignGrid" class="preset-pack-grid"></div>
+
+                <!-- Semantic Custom Fake Campaign Generator Form (`forms` + `validate-input-after-interaction`) -->
+                <form id="customFakeForm" action="/api/campaigns/generate_fake" method="POST" aria-labelledby="customFakeFormTitle" style="border-top:1px solid var(--border); padding-top:0.65rem;">
+                  <div id="customFakeFormTitle" style="font-size:0.82rem; font-weight:600; margin-bottom:0.4rem;">
+                    Sandbox Only · Generate &amp; Ingest a Space-Filling Synthetic DoE Batch
+                  </div>
+                  <div class="form-grid" style="grid-template-columns:repeat(auto-fit, minmax(125px, 1fr)); margin:0 0 0.55rem;">
+                    <div>
+                      <label for="genWafers">Wafers (1–24) *</label>
+                      <span id="genWafersHint" class="field-hint">Coupon runs</span>
+                      <input id="genWafers" name="n_wafers" type="number" min="1" max="24" step="1" value="6" required aria-describedby="genWafersHint" data-error="genWafersErr" />
+                      <div id="genWafersErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter 1 to 24 wafers.</div>
+                    </div>
+                    <div>
+                      <label for="genSims">Simulations (0–20)</label>
+                      <span id="genSimsHint" class="field-hint">Gas+Knudsen runs</span>
+                      <input id="genSims" name="n_simulations" type="number" min="0" max="20" step="1" value="3" required aria-describedby="genSimsHint" data-error="genSimsErr" />
+                      <div id="genSimsErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter 0 to 20 simulation runs.</div>
+                    </div>
+                    <div>
+                      <label for="genGoal">Campaign Mode</label>
+                      <span class="field-hint">Target phenomenon</span>
+                      <select id="genGoal" name="goal">
+                        <option value="plug_fill" selected>Plug Fill (1000 nm)</option>
+                        <option value="partial_fill">Partial Fill (~520 nm)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="genSeed">Random Seed *</label>
+                      <span id="genSeedHint" class="field-hint">Reproducible DoE</span>
+                      <input id="genSeed" name="seed" type="number" min="1" max="999999" step="1" value="2026" required aria-describedby="genSeedHint" data-error="genSeedErr" />
+                      <div id="genSeedErr" class="error-msg"><span role="img" aria-label="Error">❌</span> Enter a seed between 1 and 999999.</div>
+                    </div>
+                  </div>
+                  <button type="submit" id="btnSubmitCustomFake" class="btn">Generate Sandbox Fake Data → Analyze &amp; Propose Next Batch</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Unified Multi-Scale Platform & Shareable Demo Data-Flow Architecture -->
+            <details id="unifiedDataFlowCard" class="card" open>
+              <summary style="cursor:pointer; font-size:0.9rem; font-weight:600;">
+                Revised Unified Data Flow · Two-Tier Cleanroom Metrology (Inline OES/AFM + Targeted HR-SEM) → KB-Coupled Brain → Shareable Static Demo
+              </summary>
+              <div class="dataflow-grid">
+                <div class="dataflow-tier">
+                  <strong>Tier A · Every-Wafer Non-Destructive Fast Loop</strong>
+                  <span>Chamber OES (<code>CN/Ar</code>, <code>C₂/CH</code>, <code>Hα/C₂</code>) + RF <code>3ω/1ω</code> + <b>Inline HS/Tilting-AFM</b> (<code>Rq</code> roughness, <code>Δh_step</code> dual-CD step, <code>SWA</code> taper, partial-fill throat) update OB, dust, and surface posteriors on every run without cleaving wafers.</span>
+                </div>
+                <div class="dataflow-tier tier-b">
+                  <strong>Tier B · Targeted Cleaved 50kx HR-SEM + KB Priors</strong>
+                  <span>Only top Pareto candidates are cleaved for 50kx SEM (<code>PH₁₁₀/₂₂₅</code>, inverted-teardrop <code>Void CD</code>, cracks). Fused with <b>79 Papers + 7 HAR + 16 Bonding + 13 AFM KB benchmarks</b> via provenance-weighted MAP &amp; heteroscedastic GP (<code>α_meas &lt;&lt; α_syn</code>).</span>
+                </div>
+                <div class="dataflow-tier tier-c">
+                  <strong>Tier C · Deterministic Static Demo Distillation</strong>
+                  <span><code>build_static_demo.py</code> distills a read-only copy of <code>data/brain_state.json</code> into browser neural weights (<code>model.json</code>), 3D MMFF94s conformers &amp; CC-BY micrographs (<code>data.json</code> + <code>figures/</code>), serving this exact unified UI on GitHub Pages.</span>
+                </div>
+              </div>
+            </details>
+
+            <!-- Row 5: Tri-Modal Causal Graph & Brain Self-Improvement Trajectory -->
+            <div class="split-grid">
+              <div class="card">
+                <h2 class="section-title">
+                  <span>Tri-Modal 5-Tier PANG Causal Graph</span>
+                  <span class="badge mono">Physics + Literature + Human + GP</span>
+                </h2>
+                <canvas id="causalCanvas" role="img" aria-label="Compact 5-tier causal graph connecting CCP knobs to plasma, sensors, Knudsen transport, and SEM outcomes" style="width:100%; height:305px; display:block;"></canvas>
+                <div id="causalNodeHint" style="font-size:0.79rem; color:var(--muted); margin-top:0.4rem;">
+                  Hover any node to highlight causal pathways. Green solid = positive coupling; Amber dashed = suppressing/inverse.
+                </div>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title">
+                  <span>Brain Self-Improvement Trajectory (RMSE &amp; Best Utility per Update)</span>
+                  <span id="histCountBadge" class="badge mono">-- updates</span>
+                </h2>
+                <canvas id="historyCanvas" role="img" aria-label="Historical chart of uncalibrated simulator RMSE, honest PANG LOOCV RMSE, and best wafer utility across Brain updates" style="width:100%; height:235px; display:block;"></canvas>
+              </div>
+            </div>
+
           </div>
         </div>
-        <div id="kbDomains" class="wm-filters" role="group" aria-label="Domain filter"></div>
-        <div class="wm-table-wrap" tabindex="0" role="region" aria-label="Literature">
-          <table class="wm-table"><thead><tr><th>Source</th><th>Domain</th><th>Takeaway</th><th>Graph nodes</th><th>Status</th></tr></thead><tbody id="kbLit"></tbody></table>
+
+        <!-- TAB 2: Interactive PECVD Gap-Fill World Model, Callable 3D Molecular Sim & 5-Tier Causal Graph -->
+        <div role="tabpanel" id="panel-knowledge" aria-labelledby="tab-knowledge" hidden="until-found">
+          <div class="panel-inner" style="display:flex; flex-direction:column; gap:1rem;">
+
+            <!-- World Model Time-Evolution Cross-Section Simulator (Neural + Calibrated Physics + GP + Optimizer) -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>PECVD Gap-Fill World Model · Real-Time Feature Evolution (Neural MLP + Calibrated Kinetics + GP Data + BO)</span>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem;">
+                  <label for="wmInlineGoal" style="font-size:0.78rem; font-weight:500;">Fill Mode:
+                    <select id="wmInlineGoal" style="padding:0.22rem 0.45rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                      <option value="plug_fill" selected>Plug Fill (1000 nm)</option>
+                      <option value="partial_fill">Partial Recessed Fill (~520 nm)</option>
+                    </select>
+                  </label>
+                  <button type="button" id="btnSnapWorldOptimal" class="btn btn-primary" style="font-size:0.76rem; padding:0.26rem 0.6rem;">⚡ Snap Knobs to AI Optimal Recipe</button>
+                  <span id="wmInlineModeBadge" class="badge badge-ok mono">Predicted · Loading…</span>
+                </div>
+              </h2>
+
+              <div class="wm-inline-grid">
+                <div class="rec-card" style="display:flex; flex-direction:column;">
+                  <canvas id="wmInlineCanvas" role="img" aria-label="Animated non-rectangular time-evolution cross-section of tapered 110 nm and 225 nm HAR features with curved menisci, teardrop keyholes, and AFM overburden topography" style="width:100%; height:325px; display:block;"></canvas>
+                  <div class="wm-player-bar">
+                    <button type="button" id="wmInlinePlayBtn" class="btn btn-primary" style="font-size:0.77rem; padding:0.28rem 0.65rem;">▶ Play Fill</button>
+                    <label for="wmInlineTime" class="visually-hidden">Deposition time fraction</label>
+                    <input id="wmInlineTime" type="range" min="0" max="100" step="1" value="100" aria-valuetext="100% of deposition" />
+                    <span id="wmInlineTimeLbl" class="mono" style="font-size:0.8rem; min-inline-size:66px; text-align:end;">t = 100%</span>
+                  </div>
+                  <div id="wmInlineSummaryNote" style="font-size:0.75rem; color:var(--muted); margin-top:0.4rem;">
+                    Non-rectangular cross-section grounded in Slide-1 50kx HR-SEMs &amp; CC-BY AFM studies: ~89.25° RIE mold taper, rounded entrance flare, collar bread-loafing arch, inverted-teardrop keyhole void (or concave bottom wetting meniscus), and curved overburden cap with AFM Rq micro-topography.
+                  </div>
+                </div>
+
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.55rem;" aria-live="polite">
+                  <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--border); padding-bottom:0.45rem;">
+                    <div>
+                      <div class="kpi-label">Predicted Chance Recipe Meets Spec</div>
+                      <div id="wmInlinePspec" style="font-size:1.75rem; font-weight:700; color:var(--ok);">--%</div>
+                    </div>
+                    <div id="wmInlineSpecMeta" class="mono" style="font-size:0.74rem; color:var(--muted); text-align:end;">--</div>
+                  </div>
+                  <div id="wmInlineOutcomesGrid" class="kpi-grid" style="margin:0; grid-template-columns:1fr 1fr; gap:0.45rem;"></div>
+                  <div>
+                    <div class="kpi-label" style="margin-bottom:0.25rem;">World-Model Layer Attribution (Uncal Sim → KB+θ̂ → Rules → Multi-Fidelity GP)</div>
+                    <div id="wmInlineLayersBox" class="mono" style="font-size:0.75rem;"></div>
+                  </div>
+                  <div>
+                    <div class="kpi-label" style="margin-bottom:0.2rem;">Simulated Inline AFM Surface Line-Scan (Rq &amp; Dual-CD Step Δh)</div>
+                    <canvas id="afmScanCanvas" role="img" aria-label="Simulated non-destructive inline AFM surface height trace showing nanoscale RMS roughness Rq, feature entrance dimple or crown, and dual-CD step height" style="width:100%; height:92px; display:block;"></canvas>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Closest Real Measured Chamber Coupons (8-Knob Distance)</div>
+                    <div id="wmInlineNearestBox" class="nearest-wafers-grid"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Merged from /world: Interactive 10-Knob One-At-A-Time Sensitivity Sweeps -->
+            <div id="wmSweepCard" class="card">
+              <h2 class="section-title">
+                <span>10-Knob One-At-A-Time Sensitivity Sweeps (Click Any Curve Point to Set Knob)</span>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; font-size:0.79rem; font-weight:500;">
+                  <label for="wmSweepTarget">Response Metric:
+                    <select id="wmSweepTarget" style="padding:0.24rem 0.48rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                      <option value="p_spec" selected>Chance of Meeting Spec P(spec)</option>
+                      <option value="ph110">PH Depth 110 nm (nm)</option>
+                      <option value="ph225">PH Depth 225 nm (nm)</option>
+                      <option value="ob">Overburden Cap (nm)</option>
+                      <option value="afm_rms">AFM Surface Roughness Rq (nm)</option>
+                      <option value="crack">Delamination Crack Risk</option>
+                      <option value="fill_h">Partial-Fill Height h* (nm)</option>
+                    </select>
+                  </label>
+                  <button type="button" id="wmSweepTableToggle" class="btn" aria-pressed="false" style="font-size:0.75rem; padding:0.24rem 0.58rem;">Show as Table</button>
+                </div>
+              </h2>
+              <p class="kpi-note" style="margin:0;">
+                Each sparkline sweeps one knob across its full cleanroom window while holding all other knobs at your active recipe (shaded band = ±1σ GP epistemic uncertainty; dashed line = active Client Spec threshold).
+              </p>
+              <div id="wmSweeps" class="wm-sweeps-grid"></div>
+              <div id="wmSweepsTableWrap" tabindex="0" role="region" aria-labelledby="wm-sweep-table-caption" class="table-wrapper" hidden>
+                <table>
+                  <caption id="wm-sweep-table-caption">10-Knob Sensitivity Sweep Values Around Current Recipe</caption>
+                  <thead>
+                    <tr>
+                      <th>Knob</th>
+                      <th>Current Value</th>
+                      <th>Low End → Prediction</th>
+                      <th>High End → Prediction</th>
+                      <th>Peak P(Meets Spec) Along Sweep</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wmSweepsTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Callable 3D Molecular & Atomistic Simulation Studio (`RDKit ETKDGv3 + MMFF94s` + `LAMMPS ReaxFF / AIREBO`) -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Callable 3D Molecular &amp; Atomistic Simulation (`a-C:H:N` Network Relaxation + `LAMMPS ReaxFF / AIREBO` Bridge)</span>
+                <div style="display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;">
+                  <span id="molArchetypeBadge" class="badge mono">53-Atom a-C:H:N Cluster</span>
+                  <button type="button" id="btnToggleMolSpin" class="btn" style="font-size:0.74rem; padding:0.22rem 0.5rem;" aria-pressed="true">Auto-Spin: On</button>
+                  <button type="button" id="btnPushMolSandbox" class="btn" style="font-size:0.74rem; padding:0.22rem 0.55rem;">+ Push Coupled Sim to Sandbox</button>
+                </div>
+              </h2>
+
+              <div class="wm-inline-grid">
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.45rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">
+                    <strong id="molClusterTitle">Relaxed 3D `a-C:H:N` Crosslinked Surface Motif (Drag to Rotate)</strong>
+                    <span id="molFormulaBadge" class="badge badge-ok mono">--</span>
+                  </div>
+                  <canvas id="mol3dCanvas" role="img" aria-label="Interactive 3D ball-and-stick molecular model of recipe-matched a-C:H:N amorphous carbon network" style="width:100%; height:265px; display:block; cursor:grab;"></canvas>
+                  <div id="molMetricsStrip" class="telemetry-strip mono" style="margin:0; font-size:0.74rem;"></div>
+                </div>
+
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.5rem;">
+                  <div style="font-size:0.78rem; color:var(--muted);" id="molClusterDesc">
+                    Live-coupled to chamber knobs: PANG's CCP gas-phase model passes wafer temperature T_s, sheath ion energy E_i, and radical flux ratio Γ_(H+NHx)/Γ_C2Hx to relax a 3D stoichiometric nanocluster (`ETKDGv3 + MMFF94s`) and emit ready-to-run `LAMMPS ReaxFF / AIREBO` &amp; `ASE GAP-20` decks.
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:0.35rem;">
+                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="pdb">Download 3D `.pdb`</button>
+                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="sdf">Download `.sdf`</button>
+                    <button type="button" class="btn btn-primary" style="font-size:0.73rem; padding:0.22rem 0.55rem;" data-mol-dl="lammps_reaxff">LAMMPS `ReaxFF` Deck</button>
+                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_data">LAMMPS `.lmp` Data</button>
+                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_airebo">LAMMPS `AIREBO`</button>
+                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="ase_py">ASE / GAP-20 `.py`</button>
+                  </div>
+                  <pre id="molDeckPreview" class="deck-code-box mono"># Generating recipe-matched LAMMPS ReaxFF plasma-surface MD deck...</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="split-grid">
+              <!-- Left: Interactive 5-Tier Causal Graph + DoE Anchors + Live What-If Perturbation -->
+              <div class="card" style="display:flex; flex-direction:column;">
+                <h2 class="section-title">
+                  <span>5-Tier Deep Causal Graph (Knobs → CCP Plasma → OES/RF → Knudsen/Bonding → SEM)</span>
+                  <span id="kgLiveReadout" class="badge mono">Predicted · β_eff -- · E_i -- · Dust η --</span>
+                </h2>
+
+                <!-- Sub-Circuit Pathway Filters + Geometry Switch + 3 Research DoE Anchor Presets -->
+                <div class="kg-filter-bar" role="group" aria-label="Causal pathway filters">
+                  <button type="button" class="filter-pill" data-kg-filter="all" aria-pressed="true">All 38 Links</button>
+                  <button type="button" class="filter-pill" data-kg-filter="nh3_quad" aria-pressed="false">NH₃ Quadruple Action</button>
+                  <button type="button" class="filter-pill" data-kg-filter="dust_guard" aria-pressed="false">C₂ₙH⁻ Dust &amp; HCN</button>
+                  <button type="button" class="filter-pill" data-kg-filter="freq_scale" aria-pressed="false">13.56 vs 27.12 MHz</button>
+                  <button type="button" class="filter-pill" data-kg-filter="inline_sensors" aria-pressed="false">Inline OES &amp; RF 3ω</button>
+                  <button type="button" class="filter-pill" data-kg-filter="ob_crack" aria-pressed="false">OB &amp; Griffith Crack</button>
+                  <button type="button" class="filter-pill" data-kg-filter="human_only" aria-pressed="false">Encoded Rules</button>
+                </div>
+
+                <div class="kg-filter-bar" aria-label="Research DoE anchor presets and feature geometry">
+                  <span class="kpi-label" style="margin-inline-end:0.2rem;">DoE Anchors:</span>
+                  <button type="button" class="btn" style="padding:0.22rem 0.55rem;font-size:0.75rem;" data-doe-preset="0">1 · 27 MHz Plug</button>
+                  <button type="button" class="btn" style="padding:0.22rem 0.55rem;font-size:0.75rem;" data-doe-preset="1">2 · Dual-CD Dep-Trim</button>
+                  <button type="button" class="btn" style="padding:0.22rem 0.55rem;font-size:0.75rem;" data-doe-preset="2">3 · Recessed Partial (~520 nm)</button>
+                  <button type="button" class="btn" style="padding:0.22rem 0.55rem;font-size:0.75rem;" data-doe-preset="a29">Hazard · A29-2 Dust/OB</button>
+                  <label style="margin-inline-start:auto; display:inline-flex; align-items:center; gap:0.35rem; font-size:0.76rem;">
+                    <span>Geometry:</span>
+                    <select id="kgSelGeom" style="padding:0.2rem 0.4rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                      <option value="hole" selected>Circular Hole (Φ²=3·AR²β)</option>
+                      <option value="trench">2D Trench What-If (Φ²=(3/r)·AR²β, r=3)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <!-- Live What-If Perturbation Strip (`P3.4`: exact steps so DoE anchors load without rounding) -->
+                <div class="kg-whatif-strip" aria-label="What-if recipe perturbation controls">
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>RF Freq</span><b id="kgLblFreq" class="mono">27.12M</b></span>
+                    <input id="kgSlFreq" type="range" min="0" max="1" step="1" value="1" aria-valuetext="27.12 MHz" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>Power</span><b id="kgLblPower" class="mono">1550W</b></span>
+                    <input id="kgSlPower" type="range" min="1150" max="2000" step="5" value="1550" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>Gap</span><b id="kgLblGap" class="mono">450mil</b></span>
+                    <input id="kgSlGap" type="range" min="400" max="500" step="1" value="450" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>Pressure</span><b id="kgLblPres" class="mono">18.5T</b></span>
+                    <input id="kgSlPres" type="range" min="14" max="22" step="0.1" value="18.5" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>Ar Flow</span><b id="kgLblAr" class="mono">11.00k</b></span>
+                    <input id="kgSlAr" type="range" min="7000" max="12000" step="50" value="11000" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>C₂H₂</span><b id="kgLblC2H2" class="mono">620</b></span>
+                    <input id="kgSlC2H2" type="range" min="600" max="700" step="1" value="620" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>NH₃</span><b id="kgLblNH3" class="mono">225</b></span>
+                    <input id="kgSlNH3" type="range" min="150" max="250" step="1" value="225" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>Temp</span><b id="kgLblTemp" class="mono">555°C</b></span>
+                    <input id="kgSlTemp" type="range" min="530" max="580" step="1" value="555" />
+                  </label>
+                  <label>
+                    <span style="display:flex;justify-content:space-between;"><span>2-Step Trim</span><b id="kgLblTrim" class="mono">0%</b></span>
+                    <input id="kgSlTrim" type="range" min="0" max="0.5" step="0.01" value="0" />
+                  </label>
+                </div>
+
+                <!-- Inline Predicted OES/RF Virtual Metrology & Static Electrode Gap Note (`P3.3` / `d1`) -->
+                <div id="kgSensorDiagnosticBar" class="telemetry-strip mono"></div>
+                <div id="kgStaticGapNote" class="kpi-note" style="margin-bottom:0.55rem;">
+                  Static hardware note: Across the 400–500 mil (10.2–12.7 mm) 300 mm showerhead gap at 14–22 Torr, radial Poiseuille pressure drop is &lt; 0.01 Torr and collisional RF sheaths span ~10–18% of the gap (<code>compute_gap_diagnostics</code>).
+                </div>
+
+                <canvas id="kgMainCanvas" role="img" aria-label="Interactive 5-tier causal network diagram linking recipe knobs to plasma, inline sensors, Knudsen transport, and SEM outcomes" style="width:100%; height:430px; display:block; cursor:pointer;"></canvas>
+                <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem; margin-top:0.45rem; font-size:0.76rem; color:var(--muted);">
+                  <span id="kgCanvasTextSummary">Click any <b>Node</b> or <b>Directed Edge</b> to inspect equations, evidence level, and extracted paper figures.</span>
+                  <span><b style="color:var(--ok)">Solid Green</b> = + Enhances · <b style="color:var(--warn)">Dashed Amber</b> = − Suppresses</span>
+                </div>
+              </div>
+
+              <!-- Right: Deep Physics, Mechanism, Evidence & Paper Figure Inspector -->
+              <div class="card" style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                  <div>
+                    <div id="kgInspectKind" class="kpi-label">Selected Causal Node</div>
+                    <h2 id="kgInspectTitle" style="margin:0.15rem 0 0; font-size:1.05rem;">NH₃ (150-250 sccm)</h2>
+                  </div>
+                  <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.25rem;">
+                    <span id="kgInspectBadge" class="badge mono">150–250 sccm</span>
+                    <span id="kgInspectEvidence" class="badge badge-ok mono">measured_in_source</span>
+                  </div>
+                </div>
+
+                <div id="kgInspectEq" class="formula-box mono"></div>
+                <p id="kgInspectSummary" style="margin:0; font-size:0.83rem;"></p>
+
+                <div id="kgInspectFailureBox" class="rec-card" style="border-inline-start:3px solid var(--warn);">
+                  <div class="kpi-label" style="color:var(--warn);">Out-of-Window Failure Mode</div>
+                  <div id="kgInspectFailure" style="font-size:0.8rem; margin-top:0.2rem;"></div>
+                </div>
+
+                <div id="kgNeighborsSection" style="display:flex; flex-direction:column; gap:0.4rem;">
+                  <div>
+                    <div class="kpi-label" style="margin-bottom:0.2rem;">Upstream Causes (Click to Walk Back)</div>
+                    <div id="kgUpstreamChips" class="chip-row"></div>
+                  </div>
+                  <div>
+                    <div class="kpi-label" style="margin-bottom:0.2rem;">Downstream Effects (Click to Trace Forward)</div>
+                    <div id="kgDownstreamChips" class="chip-row"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="kpi-label" style="margin-bottom:0.3rem;">Linked Paper Figures &amp; Micrographs (Click to Zoom)</div>
+                  <div id="kgInspectorFigs" class="inspector-fig-grid"></div>
+                </div>
+
+                <div id="kgHumanRulesBox" style="font-size:0.78rem; color:var(--muted);"></div>
+
+                <div style="margin-top:auto; padding-top:0.6rem; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:0.5rem;">
+                  <button type="button" id="btnSendKgToSandbox" class="btn">Open Recipe in Sandbox (Tab 4)</button>
+                  <button type="button" id="btnJumpToOptimizer" class="btn btn-primary">Plan Next Round (Tab 1) →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Interactive 3-Panel Coupled Physics & Chemistry Mechanism Simulator -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Interactive Coupled Physics &amp; Chemistry Mechanism Studio (Live-Driven by What-If Recipe Above)</span>
+                <span id="mechStudioBadge" class="badge mono">Predicted · Kn₁₁₀ -- · Superconformal -- · F-Barrier -- eV</span>
+              </h2>
+              <div class="tri-sim-grid">
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.4rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:0.84rem;">1. Gas-Phase CCP Sheath, C₂ₙH⁻ Dust Trap &amp; HCN/OES</strong>
+                    <span id="ccpPanelTag" class="badge mono">Predicted · --</span>
+                  </div>
+                  <canvas id="ccpChemCanvas" role="img" aria-label="Schematic of CCP electrode sheaths, negative hydrocarbon dust trapping, convective Ar sweep, and predicted OES emission lines" style="width:100%; height:255px; display:block;"></canvas>
+                  <div style="font-size:0.74rem; color:var(--muted);">
+                    Shows RF sheath compression (13.56 vs 27.12 MHz), positive-potential bulk trapping of <b>C₂H⁻→C₁₂H⁻</b> anions vs convective <b>Ar</b> sweep (τ_res) + volatile <b>HCN↑</b> scavenging, and predicted OES lines.
+                  </div>
+                </div>
+
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.4rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:0.84rem;">2. Ballistic Knudsen Bounces &amp; Depth Velocity v_net(z)</strong>
+                    <span id="knudsenPanelTag" class="badge mono">Predicted · --</span>
+                  </div>
+                  <canvas id="knudsenDepthCanvas" role="img" aria-label="Cross-section of ballistic Knudsen bounces inside a 110 nm via alongside the 11-point depth-resolved growth velocity curve" style="width:100%; height:255px; display:block;"></canvas>
+                  <div style="font-size:0.74rem; color:var(--muted);">
+                    Left: 110 nm (AR 9.1) ballistic trajectories bouncing <b>1/β_eff</b> times on <b>-H/-NH₂</b> capped walls + 2π view-factor top scour. Right: 11-point <b>v_net(z)</b> (nm/min) for 110 nm vs 225 nm.
+                  </div>
+                </div>
+
+                <div class="rec-card" style="display:flex; flex-direction:column; gap:0.4rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:0.84rem;">3. 550 °C a-C:H:N Network &amp; Griffith Delamination Map</strong>
+                    <span id="bondingPanelTag" class="badge mono">Predicted · --</span>
+                  </div>
+                  <canvas id="bondingCrackCanvas" role="img" aria-label="Griffith overburden delamination phase map plotting planar overburden thickness against compressive stress" style="width:100%; height:255px; display:block;"></canvas>
+                  <div style="font-size:0.74rem; color:var(--muted);">
+                    Maps predicted planar <b>t_OB</b> vs compressive <b>|σ|</b> against Griffith fracture boundary <b>G = σ²t_OB/(2E') = G_c</b>; coupons are plotted only when stress is measured.
+                  </div>
+                </div>
+              </div>
+              <div class="whatif-live-papers-strip">
+                <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
+                  <div>
+                    <strong style="font-size:0.84rem;">Most Relevant Papers &amp; Benchmarks for Your Active What-If Configuration</strong>
+                    <div id="kgLiveConfigSummary" class="mono" style="font-size:0.73rem; color:var(--brand); margin-block-start:0.12rem;">Matching active recipe against 102 verified papers &amp; 10 datasets…</div>
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:0.45rem;">
+                    <button type="button" id="btnMatchWhatIfInKb" class="btn btn-primary">Search Full Configuration in Knowledge Base (Tab 5) →</button>
+                    <button type="button" id="btnJumpKbTab" class="btn">Browse All 102 Sources</button>
+                  </div>
+                </div>
+                <div id="kgLiveRelevantPapersGrid" class="config-ranked-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Cross-Section SEM Vision Lab -->
+        <div role="tabpanel" id="panel-sem" aria-labelledby="tab-sem" hidden="until-found">
+          <div class="panel-inner split-grid">
+            <div class="card" style="display:flex; flex-direction:column; gap:0.8rem;">
+              <h2 class="section-title">
+                <span>Cross-Sectional SEM Automated Metrology</span>
+                <span class="badge">50.0kx · 1000 nm HAR Calibration</span>
+              </h2>
+              <div style="display:flex; flex-wrap:wrap; gap:0.55rem; align-items:center; font-size:0.83rem;">
+                <label for="semSampleSelect">Coupon Sample:
+                  <select id="semSampleSelect" name="sem_sample" style="padding:0.35rem 0.5rem; border-radius:0.4rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                    <option value="">— Select a coupon SEM sample —</option>
+                  </select>
+                </label>
+                <button type="button" id="btnAnalyzeSample" class="btn btn-primary">Analyze Selected SEM</button>
+                <label for="semUploadInput" class="btn" style="cursor:pointer;">
+                  Upload Custom SEM Image…
+                  <input type="file" id="semUploadInput" name="sem_file" accept="image/*" class="visually-hidden" />
+                </label>
+              </div>
+
+              <div style="background:#090d16; border:1px solid var(--border); border-radius:0.55rem; padding:0.75rem; text-align:center;">
+                <img id="semOverlayImg" alt="Annotated cross-sectional SEM metrology overlay" style="max-width:100%; max-height:340px; object-fit:contain; border-radius:0.35rem;" />
+                <div style="font-size:0.76rem; color:#94a3b8; margin-top:0.45rem;">
+                  Overlay Legend: <b style="color:#22d3ee">Cyan</b> = Top OB Surface · <b style="color:#fbbf24">Amber</b> = Hole Mouth (z=0) · <b style="color:#e879f9">Fuchsia</b> = PH Depth Horizon · <b style="color:#ef4444">Red</b> = Keyhole Voids · <b style="color:#10b981">Green</b> = 1.0 µm Base
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="display:flex; flex-direction:column; gap:0.8rem;">
+              <h2 class="section-title">
+                <span>Extracted SEM Metrology &amp; Brain Ingestion</span>
+                <span id="semRegimeBadge" class="badge mono">--</span>
+              </h2>
+              <div id="semUnverifiedBanner" class="toast-banner" style="border-color:var(--accent); margin-block-end:0;">
+                <strong>CV verified on Slide-1 50 kx SEMs (±80 nm PH):</strong> Always inspect the scalebar and confirm or edit prefilled OB, PH depth / fill height, and void width below before ingesting as measured.
+              </div>
+              <div id="semMetricsBox" class="kpi-grid" style="margin:0; grid-template-columns:1fr 1fr;"></div>
+              <ul id="semNotesList" style="margin:0; padding-inline-start:1.2rem; font-size:0.82rem; color:var(--muted);"></ul>
+
+              <div style="border-top:1px solid var(--border); padding-top:0.75rem;">
+                <div style="font-size:0.84rem; font-weight:600; margin-bottom:0.4rem;">Bind Verified SEM Metrology to Full Recipe &amp; Update PANG Brain</div>
+                <div class="form-grid" style="margin:0 0 0.6rem;">
+                  <label for="semIngestId">Wafer / Coupon ID
+                    <input id="semIngestId" name="exp_id" type="text" value="SEM-NEW-01" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                  </label>
+                  <label for="semIngestSuggestionId">Planned Suggestion ID (optional)
+                    <select id="semIngestSuggestionId" name="suggestion_id">
+                      <option value="">— None (unlinked wafer) —</option>
+                    </select>
+                  </label>
+                  <label for="semIngestProv">Provenance
+                    <select id="semIngestProv" name="provenance" aria-describedby="semProvLockHint">
+                      <option value="measured" selected>Measured (real chamber coupon)</option>
+                      <option value="synthetic">Synthetic (sandbox SEM)</option>
+                    </select>
+                    <span id="semProvLockHint" class="field-hint">Derived from owner wafer record or app generator tag.</span>
+                  </label>
+                  <label for="semIngestMode">Fill Mode
+                    <select id="semIngestMode" name="fill_mode">
+                      <option value="plug_fill" selected>Plug Fill (PH depth)</option>
+                      <option value="partial_fill">Partial Fill (fill height h*)</option>
+                    </select>
+                  </label>
+                  <label for="semIngestOb">Verified OB Mean (nm) *
+                    <input id="semIngestOb" name="ob_nm" type="number" min="0" max="2000" step="0.1" placeholder="Prefilled from CV" required />
+                  </label>
+                  <label for="semIngestDepth">Verified 110 nm PH Depth / Fill Height (nm) *
+                    <input id="semIngestDepth" name="depth_110_nm" type="number" min="0" max="25000" step="0.1" placeholder="Prefilled from CV" required />
+                  </label>
+                  <label for="semIngestVoid">Verified 110 nm Void Width (nm, blank = null)
+                    <input id="semIngestVoid" name="void_width_110_nm" type="number" min="0" max="2000" step="0.1" placeholder="Blank = unmeasured" />
+                  </label>
+                  <label for="semIngestCrack">Crack Detected
+                    <select id="semIngestCrack" name="crack_detected">
+                      <option value="">Unmeasured (null)</option>
+                      <option value="false" selected>No (intact)</option>
+                      <option value="true">Yes (crack)</option>
+                    </select>
+                  </label>
+                  <label for="semIngestNodule">Nodule Defect
+                    <select id="semIngestNodule" name="nodule_defect">
+                      <option value="">Unmeasured (null)</option>
+                      <option value="false" selected>No</option>
+                      <option value="true">Yes (nodule)</option>
+                    </select>
+                  </label>
+                  <label for="semIngestFreq">RF Freq (MHz)
+                    <select id="semIngestFreq" name="freq_mhz"><option value="13.56">13.56</option><option value="27.12" selected>27.12</option></select>
+                  </label>
+                  <label for="semIngestPower">Power (W) <input id="semIngestPower" name="power_w" type="number" value="1550" /></label>
+                  <label for="semIngestGap">Gap (mils) <input id="semIngestGap" name="gap_mils" type="number" step="5" value="450" /></label>
+                  <label for="semIngestP">Pressure (Torr) <input id="semIngestP" name="pressure_torr" type="number" step="0.5" value="18.5" /></label>
+                  <label for="semIngestAr">Ar (sccm) <input id="semIngestAr" name="ar_sccm" type="number" step="250" value="11000" /></label>
+                  <label for="semIngestTemp">Temp (°C) <input id="semIngestTemp" name="temp_c" type="number" step="5" value="555" /></label>
+                  <label for="semIngestC2H2">C₂H₂ (sccm) <input id="semIngestC2H2" name="c2h2_sccm" type="number" step="5" value="620" /></label>
+                  <label for="semIngestNH3">NH₃ (sccm) <input id="semIngestNH3" name="nh3_sccm" type="number" step="5" value="225" /></label>
+                  <label for="semIngestPh225">Optional Measured 225 nm PH Depth (nm, blank = null)
+                    <input id="semIngestPh225" name="ph_depth_225_nm" type="number" step="1" placeholder="Unmeasured -> stored as null" />
+                  </label>
+                  <label for="semIngestAfmRms">Optional Inline AFM Rq Roughness (nm, blank = null)
+                    <input id="semIngestAfmRms" name="afm_rms_nm" type="number" min="0" max="200" step="0.05" placeholder="Tier-A AFM Rq (null if unmeasured)" />
+                  </label>
+                  <label for="semIngestTaperDeg" class="full">Optional Tilting-AFM / HR-SEM Sidewall Angle SWA (deg, blank = null)
+                    <input id="semIngestTaperDeg" name="sidewall_taper_deg" type="number" min="75" max="95" step="0.05" placeholder="e.g. 89.25 (null if unmeasured)" />
+                  </label>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.6rem;">
+                  <button type="button" id="btnIngestSemToBrain" class="btn btn-primary">Ingest Verified SEM Metrology → Update Brain</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Simulator vs. PANG Brain Discrepancy Explorer -->
+        <div role="tabpanel" id="panel-sim" aria-labelledby="tab-sim" hidden="until-found">
+          <div class="panel-inner split-grid">
+            <div class="card" style="display:flex; flex-direction:column; gap:0.85rem;">
+              <h2 class="section-title">
+                <span>Interactive CCP Recipe Sandbox (400–500 mils · 14–22 Torr · 530–580 °C)</span>
+                <button type="button" id="btnIngestSimRun" class="btn">+ Log Gas/Feature Sim to Brain</button>
+              </h2>
+              <div class="slider-grid">
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>RF Frequency</span><b id="lblFreq" class="mono">27.12 MHz</b></span>
+                  <input id="slFreq" type="range" min="0" max="1" step="1" value="1" aria-valuetext="27.12 MHz" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>RF Power (W)</span><b id="lblPower" class="mono">1550 W</b></span>
+                  <input id="slPower" type="range" min="1150" max="2000" step="5" value="1550" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>Gap (mils)</span><b id="lblGap" class="mono">450 mils</b></span>
+                  <input id="slGap" type="range" min="400" max="500" step="1" value="450" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>Pressure (Torr)</span><b id="lblPres" class="mono">18.5 T</b></span>
+                  <input id="slPres" type="range" min="14" max="22" step="0.1" value="18.5" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>Ar Flow (sccm)</span><b id="lblAr" class="mono">11000</b></span>
+                  <input id="slAr" type="range" min="7000" max="12000" step="50" value="11000" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>C₂H₂ (sccm)</span><b id="lblC2H2" class="mono">620</b></span>
+                  <input id="slC2H2" type="range" min="600" max="700" step="1" value="620" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>NH₃ (sccm)</span><b id="lblNH3" class="mono">225</b></span>
+                  <input id="slNH3" type="range" min="150" max="250" step="1" value="225" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>Temp (°C)</span><b id="lblTemp" class="mono">555 °C</b></span>
+                  <input id="slTemp" type="range" min="530" max="580" step="1" value="555" />
+                </label>
+                <label class="slider-field">
+                  <span style="display:flex;justify-content:space-between;"><span>2-Step Trim</span><b id="lblTrim" class="mono">0%</b></span>
+                  <input id="slTrim" type="range" min="0" max="0.5" step="0.01" value="0" />
+                </label>
+              </div>
+
+              <div id="simCompareGrid" class="kpi-grid" style="margin:0;"></div>
+              <div id="simSensorReadout" class="telemetry-strip mono" style="margin:0;"></div>
+              <div id="simActiveRules" style="font-size:0.81rem; color:var(--muted);"></div>
+            </div>
+
+            <div class="card">
+              <h2 class="section-title">
+                <span>Predicted 1.0 µm Dual-CD Profile (110 nm &amp; 225 nm)</span>
+                <button type="button" id="btnRunSandboxWafer" class="btn btn-primary">Run Virtual Wafer Here → Update Brain</button>
+              </h2>
+              <canvas id="profilePreviewCanvas" role="img" aria-label="Predicted 1000 nm cross-sectional fill profile for 110 nm and 225 nm features" style="width:100%; height:335px; display:block;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Dedicated Knowledge Base, Extracted Literature, Figures & Quantitative Datasets Tracker -->
+        <div role="tabpanel" id="panel-kb-tracker" aria-labelledby="tab-kb-tracker" hidden="until-found">
+          <div class="panel-inner" style="display:flex; flex-direction:column; gap:1rem;">
+
+            <div id="kbTrackerKpis" class="kpi-grid" style="margin:0;"></div>
+
+            <!-- Physics-Aware Configuration-to-Paper & Quantitative Benchmark Search Engine -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Configuration-to-Literature &amp; Benchmark Search ("For This Configuration, Here Are the Most Relevant Papers")</span>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem;">
+                  <button type="button" id="btnMatchActiveWhatIfConfig" class="btn btn-primary" style="font-size:0.76rem; padding:0.28rem 0.62rem;">⚡ Match Active What-If Recipe</button>
+                  <button type="button" id="btnResetKbConfigSearch" class="btn" style="font-size:0.76rem; padding:0.28rem 0.58rem;">Reset Filters</button>
+                </div>
+              </h2>
+
+              <search id="kbConfigSearchLandmark" class="config-search-landmark" aria-label="Search papers and quantitative benchmarks by chamber and feature configuration">
+                <div style="font-size:0.79rem; color:var(--muted);">
+                  Select a quick chamber/feature preset, sync your active recipe, or combine configuration facets below to rank all <b>102 verified papers</b> and <b>10 quantitative benchmark datasets</b> by physical regime match:
+                </div>
+                <div id="kbConfigPresetBar" class="config-preset-bar" role="group" aria-label="Configuration search presets"></div>
+
+                <form id="kbConfigSearchForm" novalidate>
+                  <div class="config-facet-grid">
+                    <label for="cfgSelRf">RF Drive Regime
+                      <select id="cfgSelRf" name="rf_regime">
+                        <option value="any">Any RF Drive</option>
+                        <option value="vhf_27mhz">VHF 27.12–60 MHz Low-Sheath CCP</option>
+                        <option value="hf_13mhz">13.56 MHz Conventional HF CCP</option>
+                        <option value="dual_freq">Dual-Frequency / Multi-Harmonic CCP</option>
+                        <option value="pulsed_rf">Pulsed RF / Cyclic Modulation</option>
+                        <option value="dc_icp_other">ICP / Sputter / Atomistic / Non-CCP</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelPressure">Pressure Window
+                      <select id="cfgSelPressure" name="pressure_regime">
+                        <option value="any">Any Pressure</option>
+                        <option value="high_p_torr">High-Pressure Collisional (1–50 Torr)</option>
+                        <option value="sub_torr">Sub-Torr Transition (0.1–1.5 Torr)</option>
+                        <option value="low_p_mtorr">Low-Pressure Kinetic (1–100 mTorr)</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelTemp">Wafer Temperature
+                      <select id="cfgSelTemp" name="temp_regime">
+                        <option value="any">Any Temperature</option>
+                        <option value="high_t_450_650c">High-Temp Dehydrogenated (450–650 °C)</option>
+                        <option value="mid_t_200_449c">Medium-Temp CVD/ALD (200–449 °C)</option>
+                        <option value="low_t_rt_200c">Low-Temp / Room-Temp (RT–200 °C)</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelChem">Gas / Film Chemistry
+                      <select id="cfgSelChem" name="chemistry">
+                        <option value="any">Any Chemistry</option>
+                        <option value="c2h2_nh3_n2">Ar + C₂H₂ + NH₃/N₂ (HCN Scavenging)</option>
+                        <option value="c2h2_ar_hydrocarbon">C₂H₂ / CₓHᵧ + Ar/He Hydrocarbon</option>
+                        <option value="n_doped_carbon">N-Doped Carbon (a-C:N / a-C:H:N)</option>
+                        <option value="nh3_h2_o2_trim">H₂ / NH₃ / O₂ Selective Mouth Trim</option>
+                        <option value="fluorocarbon_har_etch">CF₄ / CHF₃ / C₄F₈ + O₂ Selectivity</option>
+                        <option value="ar_inert_model">Inert Ar / Reference CCP</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelGeom">Feature Geometry &amp; AR
+                      <select id="cfgSelGeom" name="geometry">
+                        <option value="any">Any Geometry</option>
+                        <option value="via_hole_3d">3D Circular Via / Contact Hole</option>
+                        <option value="trench_2d">2D Trench / Line-Space Grating</option>
+                        <option value="har_ge_8">High Aspect Ratio (AR ≥ 8:1, Kn &gt;&gt; 1)</option>
+                        <option value="mod_ar_2_8">Moderate Aspect Ratio (AR 2–8)</option>
+                        <option value="planar_blanket">Blanket Film / Bulk / Atomistic RVE</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelMode">Process Objective
+                      <select id="cfgSelMode" name="process_mode">
+                        <option value="any">Any Objective</option>
+                        <option value="plug_fill">Seamless Bottom-Up Plug Fill</option>
+                        <option value="partial_fill">Controlled Recessed Partial Fill</option>
+                        <option value="dep_trim_cyclic">2-Step Cyclic Dep–Trim</option>
+                        <option value="hardmask_selectivity">ACL Hardmask ρ, Stress &amp; Selectivity</option>
+                        <option value="dust_suppression">C₂ₙH⁻ Dust / Nodule Suppression</option>
+                      </select>
+                    </label>
+                    <label for="cfgSelMethod">Method / Diagnostic
+                      <select id="cfgSelMethod" name="method">
+                        <option value="any">Any Method / Diagnostic</option>
+                        <option value="sem_tem">Cross-Sectional SEM / HRTEM</option>
+                        <option value="afm_xrr_xps">3D/Tilting AFM, XRR, Raman &amp; XPS</option>
+                        <option value="oes_rf_sensors">OES Actinometry, QMS &amp; 3ω/1ω RF</option>
+                        <option value="knudsen_levelset">Ballistic Knudsen / Bosanquet / Level-Set</option>
+                        <option value="pic_fluid_ccp">PIC-MCC Kinetic / Fluid CCP Sim</option>
+                        <option value="md_dft_reaxff">ReaxFF / AIREBO / GAP-20 / DFT</option>
+                        <option value="bo_ml_surrogate">Bayesian Optimization / Surrogate / VM</option>
+                      </select>
+                    </label>
+                    <label for="kbConfigKeywordInput">Keyword / Formula / DOI Filter
+                      <input id="kbConfigKeywordInput" name="query" type="search" placeholder="e.g. C2H2, graphitic N, Bosanquet, pulsed, 27.12…" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                    </label>
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem; margin-block-end:0.55rem;">
+                    <button type="submit" id="btnSubmitKbConfigSearch" class="btn btn-primary">Find Most Relevant Papers &amp; Benchmark Data</button>
+                    <div id="kbConfigLiveStatus" role="status" aria-live="polite" class="badge badge-ok mono">Ready · 102 Verified Sources Indexed</div>
+                  </div>
+                </form>
+              </search>
+
+              <div id="kbConfigSummaryBanner" class="config-summary-banner"></div>
+              <div id="kbConfigPapersGrid" class="config-ranked-grid"></div>
+
+              <details id="kbConfigMatchedRowsDetails" style="margin-block-start:0.75rem;" open>
+                <summary style="cursor:pointer; font-weight:600; font-size:0.84rem; color:var(--brand);">
+                  Matching Quantitative Benchmark Dataset Rows for This Configuration (<span id="kbConfigRowsCount">0</span> rows)
+                </summary>
+                <div tabindex="0" role="region" aria-labelledby="kb-config-rows-caption" class="table-wrapper" style="max-block-size:270px; margin-block-start:0.5rem;">
+                  <table>
+                    <caption id="kb-config-rows-caption">Quantitative Benchmark Rows Linked to Top-Ranked Configuration Papers</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Benchmark Sample / Condition</th>
+                        <th scope="col">Dataset</th>
+                        <th scope="col">Provenance</th>
+                        <th scope="col">Key Quantitative Metrics</th>
+                        <th scope="col">Source &amp; Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="kbConfigRowsBody"></tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+
+            <!-- Quantitative Benchmark Datasets Explorer (7 Curated Datasets incl. ReaxFF/AIREBO/GAP-20 & PECVD Gap-Fill) -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Curated Quantitative Benchmark Datasets (`provenance: literature` vs `measured_owner`)</span>
+                <label for="kbDatasetSelect" style="font-size:0.8rem; font-weight:500;">Dataset:
+                  <select id="kbDatasetSelect" style="padding:0.28rem 0.5rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);"></select>
+                </label>
+              </h2>
+              <div id="kbDatasetDesc" style="font-size:0.79rem; color:var(--muted); margin-bottom:0.5rem;"></div>
+              <div tabindex="0" role="region" aria-labelledby="kb-dataset-caption" class="table-wrapper" style="max-block-size:320px;">
+                <table>
+                  <caption id="kb-dataset-caption">Extracted Literature &amp; Atomistic MD Quantitative Benchmarks</caption>
+                  <thead id="kbDatasetHead"></thead>
+                  <tbody id="kbDatasetBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Multi-Fidelity Paper Training Datasets Explorer -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Multi-Fidelity Paper Training Datasets Powering PANG Brain Stages 1–3</span>
+                <label for="trainingTableSelect" style="font-size:0.8rem; font-weight:500;">Inspect Table:
+                  <select id="trainingTableSelect" style="padding:0.28rem 0.5rem; border-radius:0.35rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
+                    <option value="gas_phase_ccp_training">Stage 1A · 24 Simulated CCP Reference States (excluded from lit priors)</option>
+                    <option value="surface_bonding_etch_training">Stage 1B · 16 Surface Bonding, Stress &amp; Etch Priors</option>
+                    <option value="har_feature_gapfill_training">Stage 2 · 15 HAR Gap-Fill Benchmarks (Owner + Literature + Simulated)</option>
+                  </select>
+                </label>
+              </h2>
+              <div id="trainingTableDesc" style="font-size:0.79rem; color:var(--muted); margin-bottom:0.5rem;"></div>
+              <div tabindex="0" role="region" aria-labelledby="training-table-caption" class="table-wrapper" style="max-block-size:310px;">
+                <table>
+                  <caption id="training-table-caption">Citation-Traceable Training Rows (Explicit Provenance: never confused with measured client wafers)</caption>
+                  <thead id="trainingTableHead"></thead>
+                  <tbody id="trainingTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 12 Peer-Reviewed Causal Logic Rules (1-Click Adoptable into PANG Brain) -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Extracted Literature Causal Logic &amp; Guardrail Rules (1-Click Promote into Active Brain)</span>
+                <span class="badge mono">12 AST-Validated Rules · Polarity ≠ Guidance</span>
+              </h2>
+              <div id="litLogicRulesGrid" class="lit-grid"></div>
+            </div>
+
+            <!-- 15-Reaction Chemical Mechanism & 8-Knob Quantitative Sensitivity Matrix -->
+            <div class="split-grid">
+              <div tabindex="0" role="region" aria-labelledby="rxn-table-caption" class="table-wrapper">
+                <table style="--label-2:'Phase';--label-3:'Reaction';--label-4:'Rate / Threshold';--label-5:'Gap-Fill Role';">
+                  <caption id="rxn-table-caption">Coupled Ar / C₂H₂ / NH₃ Gas-Phase, Knudsen Surface &amp; 550 °C Network Reactions (R01–R15)</caption>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Phase</th>
+                      <th>Reaction Stoichiometry</th>
+                      <th>Arrhenius / Threshold</th>
+                      <th>Physical Role in Gap-Fill</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rxnTableBody"></tbody>
+                </table>
+              </div>
+
+              <div tabindex="0" role="region" aria-labelledby="sens-table-caption" class="table-wrapper">
+                <table style="--label-2:'n_e';--label-3:'E_i';--label-4:'Dust η';--label-5:'PH_110';--label-6:'OB';--label-7:'Crack';">
+                  <caption id="sens-table-caption">8-Knob Quantitative Sensitivity &amp; Scaling Matrix</caption>
+                  <thead>
+                    <tr>
+                      <th>Process Knob</th>
+                      <th>n_e</th>
+                      <th>E_i</th>
+                      <th>Dust η</th>
+                      <th>PH₁₁₀</th>
+                      <th>OB</th>
+                      <th>Stress/Crack</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sensTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 3 Industrial PECVD Carbon Regimes Comparison -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Process Regime Taxonomy: Why High-T (530–580 °C), High-P (14–22 Torr) Ar/C₂H₂/NH₃ Wins</span>
+                <span class="badge">Zero Shrinkage · Kn ≈ 60–140 Ballistic Fill</span>
+              </h2>
+              <div id="kgRegimesGrid" class="regime-grid"></div>
+            </div>
+
+            <!-- Extracted 36 Paper Figures & Micrographs Gallery -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Extracted Research Figures, SEM/HRTEM Micrographs &amp; Spectra (36 Figures · Auto-Sorted by Node)</span>
+                <div class="kg-filter-bar" style="margin:0;">
+                  <button type="button" class="filter-pill" data-fig-cat="all" aria-pressed="true">All (36)</button>
+                  <button type="button" class="filter-pill" data-fig-cat="sem_micrograph" aria-pressed="false">SEM / HRTEM</button>
+                  <button type="button" class="filter-pill" data-fig-cat="plasma_diagnostics" aria-pressed="false">Plasma / OES / Dust</button>
+                  <button type="button" class="filter-pill" data-fig-cat="bonding_spectroscopy" aria-pressed="false">Raman / XPS / DFT</button>
+                  <button type="button" class="filter-pill" data-fig-cat="ccp_simulation" aria-pressed="false">CCP / PIC-MCC</button>
+                  <button type="button" class="filter-pill" data-fig-cat="ai_optimization" aria-pressed="false">AI Surrogates / BO</button>
+                </div>
+              </h2>
+              <div id="kgFiguresGallery" class="fig-gallery-grid"></div>
+            </div>
+
+            <!-- Verified 102-Paper & OEM Patent Corpus with Search + Domain Filter Pills -->
+            <div class="card">
+              <h2 class="section-title">
+                <span>Full Verified Literature, Atomistic MD &amp; OEM Patent Corpus (102 Sources)</span>
+                <search aria-label="Filter full literature list by keyword" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
+                  <label for="kbLitSearchInput" class="visually-hidden">Search literature corpus</label>
+                  <input id="kbLitSearchInput" type="search" placeholder="Filter 102 papers (ReaxFF, GAP-20, NH3, pulsed…)" autocorrect="off" autocapitalize="none" spellcheck="false" style="padding:0.28rem 0.55rem; border-radius:0.4rem; border:1px solid var(--border); background:var(--surface-alt); color:var(--text); font-size:0.78rem; min-inline-size:255px;" />
+                  <span id="kgLitBadge" class="badge mono">102 Primary Sources</span>
+                </search>
+              </h2>
+              <div class="kg-filter-bar" role="group" aria-label="Literature domain filters">
+                <button type="button" class="filter-pill" data-lit-domain="all" aria-pressed="true">All Domains</button>
+                <button type="button" class="filter-pill" data-lit-domain="knudsen_gapfill" aria-pressed="false">Knudsen &amp; Gap-Fill</button>
+                <button type="button" class="filter-pill" data-lit-domain="c2h2_nh3_dust" aria-pressed="false">C₂H₂/NH₃ &amp; Dust</button>
+                <button type="button" class="filter-pill" data-lit-domain="bonding_hardmask" aria-pressed="false">a-C:H:N Bonding, MD &amp; Etch</button>
+                <button type="button" class="filter-pill" data-lit-domain="ccp_freq_gap" aria-pressed="false">CCP Freq &amp; Gap</button>
+                <button type="button" class="filter-pill" data-lit-domain="ai_plasma_bo" aria-pressed="false">Plasma AI, ML-IP &amp; BO</button>
+              </div>
+              <div id="kgLitGrid" class="lit-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: Experimental Wafer & Human Knowledge Ledger -->
+        <div role="tabpanel" id="panel-ledger" aria-labelledby="tab-ledger" hidden="until-found">
+          <div class="panel-inner" style="display:flex; flex-direction:column; gap:1rem;">
+            <div tabindex="0" role="region" aria-labelledby="wafer-ledger-caption" class="table-wrapper">
+              <table style="--label-2:'RF / Power';--label-3:'Gap / P';--label-4:'Ar / C2H2 / NH3';--label-5:'OB (nm)';--label-6:'PH Depth';--label-7:'Uncal Sim';--label-8:'Defects';--label-9:'Actions';">
+                <caption id="wafer-ledger-caption">Experimental Wafer &amp; Blanket Coupon SEM Ledger (Slide-1 Measured Anchors + Synthetic DoE + Active Runs)</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Coupon ID</th>
+                    <th scope="col">RF / Power</th>
+                    <th scope="col">Gap / P</th>
+                    <th scope="col">Ar / C₂H₂ / NH₃ (N/C)</th>
+                    <th scope="col">OB (nm)</th>
+                    <th scope="col">PH Depth 110nm</th>
+                    <th scope="col">Uncal Sim PH</th>
+                    <th scope="col">Defects</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="waferTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="split-grid">
+              <div class="card">
+                <h2 class="section-title">
+                  <span>Encoded Human &amp; Adopted Literature Rules</span>
+                </h2>
+                <div id="humanRulesList" class="rec-list"></div>
+              </div>
+              <div class="card">
+                <h2 class="section-title">
+                  <span>Calibrated Feature-Scale Kinetics (θ̂_PANG vs. Uncalibrated θ₀)</span>
+                </h2>
+                <div id="thetaCompareBox" class="mono" style="font-size:0.82rem;"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="wm-card">
-        <h2>Datasets &amp; training tables</h2>
-        <div id="kbDatasets" class="wm-ds-grid"></div>
-      </div>
-
-      <div class="wm-card">
-        <h2>Extracted figures</h2>
-        <div id="kbFigures" class="wm-fig-grid"></div>
-      </div>
-    </section>
+    </div>
+    </div><!-- /#advancedWorkbenchWrapper -->
   </div>
-  <div id="wmToast" class="wm-toast" role="status" hidden></div>
+
+  <!-- Native Modal Dialog for High-Resolution Paper Figure Lightbox (`closedby="any"`) -->
+  <dialog id="figLightboxDialog" class="lightbox-dialog" closedby="any" aria-labelledby="figLightboxTitle">
+    <form method="dialog">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; margin-bottom:0.6rem;">
+        <div>
+          <div id="figLightboxMeta" class="kpi-label mono"></div>
+          <h2 id="figLightboxTitle" style="margin:0.15rem 0 0; font-size:1.05rem;">Figure Preview</h2>
+        </div>
+        <button type="submit" class="btn">Close (Esc)</button>
+      </div>
+      <div style="background:#ffffff; border:1px solid var(--border); border-radius:0.5rem; padding:0.65rem; text-align:center;">
+        <img id="figLightboxImg" alt="High-resolution extracted research figure" style="max-inline-size:100%; max-block-size:62vh; object-fit:contain;" />
+      </div>
+      <p id="figLightboxCaption" style="margin:0.6rem 0 0.35rem; font-size:0.83rem;"></p>
+      <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem; font-size:0.78rem;">
+        <span id="figLightboxQuant" class="badge badge-ok mono"></span>
+        <a id="figLightboxLink" href="#" target="_blank" rel="noopener noreferrer" class="btn">Open Original Paper / DOI ↗</a>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Native Modal Dialog for Injecting New Human Intelligence Rule -->
+  <dialog id="ruleDialog" closedby="any" aria-labelledby="ruleDialogTitle">
+    <h1 id="ruleDialogTitle" style="margin:0 0 0.35rem; font-size:1.1rem;">Inject Human Intelligence Rule into PANG Brain</h1>
+    <p style="margin:0 0 0.65rem; font-size:0.82rem; color:var(--muted);">
+      Encode process-engineer causal intuition or fab guardrails. The Brain immediately updates its prior field, causal graph, and active optimizer.
+    </p>
+    <form id="ruleForm" method="dialog">
+      <div class="form-grid">
+        <label class="full">Rule Title
+          <input id="hrTitle" type="text" required autofocus placeholder="e.g., High-Ar Sweep Boosts 110nm Clean Fill" />
+        </label>
+        <label>Source Causal Node
+          <select id="hrSource">
+            <option value="nh3_sccm">NH₃ Flow</option>
+            <option value="pressure_torr">Pressure (Torr)</option>
+            <option value="ar_sccm">Ar Flow</option>
+            <option value="freq_mhz">RF Frequency</option>
+            <option value="power_w">RF Power</option>
+            <option value="temp_c">Substrate Temp</option>
+            <option value="oes_actinometry">OES Actinometry</option>
+            <option value="rf_harmonics">RF 3ω Harmonics</option>
+          </select>
+        </label>
+        <label>Target Outcome Node
+          <select id="hrTarget">
+            <option value="ph_depth">PH Depth (Fill)</option>
+            <option value="ob_nm">Overburden OB</option>
+            <option value="crack_risk">Crack / Nodule Risk</option>
+            <option value="dust_margin">Dust Safety Margin</option>
+            <option value="beta_inv">Knudsen Mobility (1/β)</option>
+          </select>
+        </label>
+        <label>Causal Sign (source → target)
+          <select id="hrPolarity">
+            <option value="1">+1 (raising source raises target)</option>
+            <option value="-1">−1 (raising source lowers target)</option>
+          </select>
+        </label>
+        <label>Optimizer Guidance
+          <select id="hrGuidance">
+            <option value="favor">Favor recipes matching the condition</option>
+            <option value="avoid">Avoid them (hazard guard)</option>
+          </select>
+        </label>
+        <label class="full">Guidance Strength (0.1–1.0)
+          <input id="hrWeight" type="number" min="0.1" max="1.0" step="0.05" value="0.70" />
+        </label>
+        <label class="full">Condition
+          <input id="hrCond" type="text" value="ar_sccm >= 10500 and nc_ratio >= 0.34" aria-describedby="hrCondHelp" />
+          <span id="hrCondHelp" style="font-size:0.74rem;color:var(--muted);">
+            Variables: freq_mhz, power_w, gap_mils, pressure_torr, ar_sccm, c2h2_sccm, nh3_sccm, temp_c, nc_ratio, trim_fraction, ob_nm, dust_margin, ion_energy_ev, beta_eff. Operators: and, or, not, &lt; &lt;= &gt; &gt;= == !=, + − * /.
+          </span>
+        </label>
+        <label>PH Depth Prior Shift (nm)
+          <input id="hrPhShift" type="number" step="5" value="25" />
+        </label>
+        <label>OB Prior Shift (nm)
+          <input id="hrObShift" type="number" step="5" value="-10" />
+        </label>
+        <label class="full">Engineering Rationale
+          <textarea id="hrDesc" rows="2">High Ar sweep (>10.5 slm) with N/C >= 0.34 prevents C2H- cluster mouth deposition.</textarea>
+        </label>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem;">
+        <button type="submit" value="cancel" formnovalidate class="btn">Cancel</button>
+        <button type="submit" value="save" class="btn btn-primary">Encode Rule &amp; Update Brain</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Native Modal Dialog for Inspecting the 8-Layer Standard Phenomenon Data Model (`pang.pecvd.carbon.v2`) -->
+  <dialog id="schemaDialog" class="lightbox-dialog" closedby="any" aria-labelledby="schemaDialogTitle">
+    <form method="dialog">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; margin-bottom:0.65rem;">
+        <div>
+          <div id="schemaDialogMeta" class="kpi-label mono">SCHEMA ID: pang.pecvd.carbon.v2</div>
+          <h2 id="schemaDialogTitle" style="margin:0.15rem 0 0; font-size:1.08rem;">Comprehensive PECVD Carbon Gap-Fill Phenomenon Data Model</h2>
+        </div>
+        <div style="display:flex; gap:0.4rem;">
+          <a href="#schema" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:0.76rem;">Raw JSON Schema ↗</a>
+          <button type="submit" class="btn">Close (Esc)</button>
+        </div>
+      </div>
+      <p style="margin:0 0 0.65rem; font-size:0.81rem; color:var(--muted);">
+        Captures the full coupled phenomenon: 300 mm CCP hardware &amp; Poiseuille fluidics, multi-step cyclic <code>Dep → Ar/NH₃ Trim</code> recipes, multi-CD hole/trench topography, inline OES actinometry &amp; RF 3ω harmonics, multi-scale Knudsen simulations, 50kx SEM + Raman/XPS/XRR/RIE film metrics, and closed-loop active DoE lineage.
+      </p>
+      <div id="schemaLayersContainer" class="schema-layer-grid"></div>
+    </form>
+  </dialog>
+
+  <!-- Native Modal Dialog for Typed-Confirmation Wafer Deletion (`P0.2` + `dialog` guide) -->
+  <dialog id="deleteWaferDialog" closedby="any" aria-labelledby="deleteWaferTitle">
+    <h1 id="deleteWaferTitle" style="margin:0 0 0.35rem; font-size:1.08rem;">Delete Wafer Record?</h1>
+    <p id="deleteWaferDesc" style="margin:0 0 0.65rem; font-size:0.82rem; color:var(--muted);">
+      The current brain state file will be backed up to <code>data/backups/</code> before deletion.
+    </p>
+    <form id="deleteWaferForm" method="dialog">
+      <div class="form-grid" style="grid-template-columns:1fr; margin:0 0 0.7rem;">
+        <div>
+          <label for="deleteWaferConfirmInput">Type exact wafer ID <strong id="deleteWaferTargetCode" class="mono"></strong> to confirm *</label>
+          <span id="deleteWaferHint" class="field-hint">Case-sensitive confirmation prevents accidental loss of chamber records.</span>
+          <input id="deleteWaferConfirmInput" name="confirm_exp_id" type="text" required autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="deleteWaferHint" />
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button type="submit" value="cancel" formnovalidate autofocus class="btn">Cancel</button>
+        <button type="submit" value="delete" class="btn btn-danger">Back Up &amp; Delete Wafer</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="world_static.js"></script>
-  <script src="world_model.js"></script>
+  <script src="app.js"></script>
+  <script src="guided_workflow.js"></script>
 </body>
 </html>
