@@ -1859,3 +1859,214 @@ dialog::backdrop {
   color: var(--muted);
   max-inline-size: 76ch;
 }
+
+/* ==========================================================================
+   Production Sprints 1–6 Interactive Hub (`progress` & `toolbar` guides)
+   ========================================================================== */
+
+progress.sprint-progress {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  container-type: inline-size;
+  inline-size: 100%;
+  block-size: 0.62rem;
+  --progress-bar-radius: 1e5px;
+  --progress-bar-track: color-mix(in srgb, var(--text) 14%, var(--surface));
+  --progress-bar-fill: var(--ok);
+  --progress-bar-indeterminate-size: 30%;
+  --progress-bar-indeterminate-animation-duration: 1.5s;
+  border-radius: var(--progress-bar-radius);
+  background: var(--progress-bar-track);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  progress.sprint-progress {
+    --progress-bar-indeterminate-animation-duration: 10s;
+  }
+}
+
+progress.sprint-progress:dir(rtl) {
+  --progress-bar-indeterminate-animation: sprint-progress-indeterminate var(--progress-bar-indeterminate-animation-duration) infinite linear reverse;
+}
+
+progress.sprint-progress:indeterminate {
+  --progress-bar-fill: var(--brand);
+  --progress-bar-animation: var(
+    --progress-bar-indeterminate-animation,
+    sprint-progress-indeterminate var(--progress-bar-indeterminate-animation-duration) infinite linear
+  );
+}
+
+progress.sprint-progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress.sprint-progress::-webkit-progress-value {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+progress.sprint-progress::-moz-progress-bar {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  progress.sprint-progress::-webkit-progress-value {
+    transition: inline-size 0.28s;
+  }
+  progress.sprint-progress::-moz-progress-bar {
+    transition: inline-size 0.28s;
+  }
+}
+
+@keyframes sprint-progress-indeterminate {
+  from, to {
+    inline-size: var(--progress-bar-indeterminate-size);
+    margin-right: auto;
+  }
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 100cqi;
+  }
+}
+
+.sprint-hub-shell {
+  margin-block-start: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, var(--border));
+  border-radius: 0.65rem;
+  background: var(--surface-alt);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.sprint-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.42rem 0.52rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sprint-toolbar-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.sprint-toolbar-sep {
+  inline-size: 0;
+  block-size: 1.45rem;
+  border-inline-start: 1px solid var(--border);
+  margin-inline: 0.18rem;
+}
+
+.sprint-sel-btn,
+.sprint-role-btn,
+.sprint-act-btn {
+  min-inline-size: 28px;
+  min-block-size: 30px;
+  padding: 0.28rem 0.62rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .sprint-sel-btn,
+  .sprint-role-btn,
+  .sprint-act-btn {
+    min-inline-size: 40px;
+    min-block-size: 40px;
+  }
+}
+
+@media (hover: hover) {
+  .sprint-sel-btn:hover,
+  .sprint-role-btn:hover,
+  .sprint-act-btn:hover {
+    border-color: var(--brand);
+  }
+}
+
+.sprint-sel-btn:focus-visible,
+.sprint-role-btn:focus-visible,
+.sprint-act-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.sprint-sel-btn[aria-pressed="true"] {
+  background: var(--brand);
+  color: #ffffff;
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
+.sprint-role-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  color: var(--ok);
+  border-color: var(--ok);
+  box-shadow: inset 0 0 0 1px var(--ok);
+}
+
+.sprint-act-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (forced-colors: active) {
+  .sprint-sel-btn[aria-pressed="true"],
+  .sprint-role-btn[aria-pressed="true"] {
+    background: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+}
+
+.sprint-progress-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.76rem;
+}
+
+.sprint-live-status {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.sprint-live-panel {
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  padding: 0.85rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.68rem;
+}
+
+.sprint-card.is-active-sprint {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+

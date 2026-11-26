@@ -974,6 +974,25 @@
   function makeBackend(loader) {
     const ready = loader();
     let guidedCursor = "step0";
+    let staticSprintProg = "tsmc_n2_plug";
+    let staticKbVer = "v2.1.0";
+    let staticSpecObMax = null;
+    let staticB2Clean = false;
+    const STATIC_RBAC = {
+      process_technologist: ["audit:read", "spec:edit", "wafer:ingest", "sim:dispatch", "kb:promote", "kb:rollback", "doe:dispatch", "signoff:approve"],
+      metrology_operator: ["audit:read", "wafer:ingest"],
+      simulation_engineer: ["audit:read", "sim:dispatch"],
+      viewer: ["audit:read"],
+    };
+    function enforceStaticRbac(role, perm) {
+      const r = String(role || "process_technologist").toLowerCase();
+      const allowed = STATIC_RBAC[r] || [];
+      if (!allowed.includes(perm)) {
+        const err = new Error(`Role '${r}' is not permitted to perform '${perm}'.`);
+        err.status = 403;
+        throw err;
+      }
+    }
     return {
       ready,
       isStaticDemo: true,
@@ -981,7 +1000,130 @@
         const { D, M } = await ready;
         const cleanPath = String(rawPath || "").split("?")[0];
         const gs = D.guided_snapshots || {};
+        const sb = D.sprints_bundle || {};
         const clone = (obj) => JSON.parse(JSON.stringify(obj || {}));
+
+        if (cleanPath.startsWith("/api/sprints/")) {
+          const role = (body && body.role) || "process_technologist";
+          if (cleanPath === "/api/sprints/reset") {
+            staticSprintProg = "tsmc_n2_plug";
+            staticKbVer = "v2.1.0";
+            staticSpecObMax = null;
+            staticB2Clean = false;
+          }
+          if (cleanPath === "/api/sprints/overview" || cleanPath === "/api/sprints/reset") {
+            const qIdx = String(rawPath || "").indexOf("?");
+            if (qIdx >= 0) {
+              const sp = new URLSearchParams(String(rawPath).slice(qIdx + 1));
+              if (sp.get("program_id")) staticSprintProg = sp.get("program_id");
+            }
+            const s1 = clone((sb.programs && sb.programs[staticSprintProg]) || sb.sprint1_initial || {});
+            if (staticSpecObMax != null && s1.selected_program && s1.selected_program.spec) {
+              s1.selected_program.spec.ob_max_nm = staticSpecObMax;
+              s1.selected_program.spec_version = 2;
+            }
+            const gov = clone(sb.sprint5_governance || {});
+            gov.active_version = staticKbVer;
+            const s2Chambers = clone((sb.sprint2_cassette && sb.sprint2_cassette.chambers) || []);
+            if (staticB2Clean) {
+              s2Chambers.forEach((c) => {
+                if (c.chamber_id === "CHAMBER-PRODUCER-B2") {
+                  c.cum_carbon_um = 0.15;
+                  c.wafers_since_clean = 0;
+                  c.clean_advisory = false;
+                }
+              });
+            }
+            return {
+              active_program_id: staticSprintProg,
+              sprint1: s1,
+              sprint2: { chambers: s2Chambers },
+              sprint4_jobs: { total_jobs: 2, running_jobs: 0, completed_jobs: 2, jobs: [] },
+              sprint5: gov,
+            };
+          }
+          if (cleanPath === "/api/sprints/sprint1/switch_program") {
+            enforceStaticRbac(role, "audit:read");
+            staticSprintProg = (body && body.program_id) || "tsmc_n2_plug";
+            return clone((sb.programs && sb.programs[staticSprintProg]) || sb.sprint1_initial || {});
+          }
+          if (cleanPath === "/api/sprints/sprint1/update_spec") {
+            enforceStaticRbac(role, "spec:edit");
+            staticSpecObMax = (body && body.spec_updates && body.spec_updates.ob_max_nm) || 82;
+            const s1 = clone((sb.programs && sb.programs[staticSprintProg]) || sb.sprint1_initial || {});
+            if (s1.selected_program && s1.selected_program.spec) {
+              s1.selected_program.spec.ob_max_nm = staticSpecObMax;
+              s1.selected_program.spec_version = 2;
+            }
+            return s1;
+          }
+          if (cleanPath === "/api/sprints/sprint2/stream_cassette") {
+            enforceStaticRbac(role, "wafer:ingest");
+            staticB2Clean = false;
+            return clone(sb.sprint2_cassette || {});
+          }
+          if (cleanPath === "/api/sprints/sprint2/chamber_clean") {
+            staticB2Clean = true;
+            const c = clone(sb.sprint2_cassette || {});
+            (c.chambers || []).forEach((ch) => {
+              if (ch.chamber_id === "CHAMBER-PRODUCER-B2") {
+                ch.cum_carbon_um = 0.15;
+                ch.wafers_since_clean = 0;
+                ch.clean_advisory = false;
+              }
+            });
+            return { cleaned_chamber: { chamber_id: "CHAMBER-PRODUCER-B2", cum_carbon_um: 0.15, clean_advisory: false }, status: { chambers: c.chambers || [] } };
+          }
+          if (cleanPath === "/api/sprints/sprint3/inspect_coupon") {
+            enforceStaticRbac(role, "wafer:ingest");
+            return { coupon: clone(sb.sprint3_coupon || {}), benchmark: clone(sb.sprint3_benchmark || {}) };
+          }
+          if (cleanPath === "/api/sprints/sprint4/submit") {
+            enforceStaticRbac(role, "sim:dispatch");
+            return clone(body && body.mode === "grid12" ? sb.sprint4_grid12 : sb.sprint4_single);
+          }
+          if (cleanPath === "/api/sprints/sprint5/action") {
+            const act = (body && body.action) || "diff";
+            if (act === "promote_first_candidate" || act === "promote_custom") {
+              enforceStaticRbac(role, "kb:promote");
+              staticKbVer = "v2.2.0";
+              const g = clone(sb.sprint5_governance || {});
+              g.active_version = staticKbVer;
+              return g;
+            }
+            if (act === "rollback") {
+              enforceStaticRbac(role, "kb:rollback");
+              staticKbVer = "v2.2.1";
+              const g = clone(sb.sprint5_governance || {});
+              g.active_version = staticKbVer;
+              return g;
+            }
+            if (act === "recommend_lineage") {
+              const bo = clone(sb.sprint5_bo_lineage || {});
+              bo.kb_version = staticKbVer;
+              return bo;
+            }
+            return { diff: clone((sb.sprint5_governance && sb.sprint5_governance.latest_diff_vs_v1) || {}), governance: clone(sb.sprint5_governance || {}) };
+          }
+          if (cleanPath === "/api/sprints/sprint6/action") {
+            const act = (body && body.action) || "qualification_signoff";
+            if (act === "export_runsheet") {
+              enforceStaticRbac(role, "doe:dispatch");
+              if (body && Array.isArray(body.custom_recipes) && body.custom_recipes.some((r) => Number(r.power_w) > 2050)) {
+                const err = new Error("Chamber hardware interlock blocked recipe dispatch: ILK-RF-PWR: RF Forward Power <= 2050 W (got 2350.0)");
+                err.status = 422;
+                throw err;
+              }
+              return clone(sb.sprint6_runsheet || {});
+            }
+            if (act === "chamber_transfer") {
+              enforceStaticRbac(role, "doe:dispatch");
+              return clone(sb.sprint6_transfer || {});
+            }
+            enforceStaticRbac(role, "signoff:approve");
+            return clone(sb.sprint6_signoff || {});
+          }
+        }
 
         if (cleanPath === "/api/workflow/state") return clone(gs[guidedCursor] || gs.step0 || {});
         if (cleanPath === "/api/workflow/reset") {

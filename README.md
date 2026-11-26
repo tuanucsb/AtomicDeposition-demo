@@ -11,7 +11,7 @@ Live interactive demo of the **AtomicDeposition PANG Platform** for CCP-PECVD am
    - **Steps 5–8 (Closed-Loop Bayesian Optimization -> Convergence):** Proposes 3-wafer DoE batches, ingests Round-1 metrology, promotes discovered rule `PROP-TSMC-06` (`KB v2.2`), and converges in Round 2 (`TSMC-R2-W1` meets 100% of spec).
 2. **Full 6-Tab Engineering Workbench:** Toggle anytime from the top header to explore animated non-rectangular gap-fill cross-sections, 3D AFM scans, 10-knob sensitivity sweeps, 3D molecular clusters, and the 20-node causal DAG.
 
-Predictions, not measurements. The page runs a browser neural + analytical surrogate trained on 6448 of the PANG Brain's predictions (median held-out error 6.1 nm for PH depth, 3.0 nm for overburden). Built 2026-11-26 16:19 UTC from Brain v6. Source code is private.
+Predictions, not measurements. The page runs a browser neural + analytical surrogate trained on 6448 of the PANG Brain's predictions (median held-out error 6.1 nm for PH depth, 3.0 nm for overburden). Built 2026-11-26 19:59 UTC from Brain v6. Source code is private.
 
 ## Figure credits (republished under their CC-BY licenses)
 - `fig01_har10_trench_sem_550c_natcomm2024.png`: 10:1 Aspect-Ratio Trench Cross-Section SEMs at 550 °C (SC = 0.69 -> 0.97) — Souqui / Pedersen et al., Nat. Commun. 15, 10638 (2024), Fig. 2 (CC-BY 4.0), https://doi.org/10.1038/s41467-024-55007-1

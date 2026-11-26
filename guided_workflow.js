@@ -421,18 +421,18 @@
       <div id="productSprintsSection" class="guided-subcard" style="background:var(--surface);">
         <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
           <div>
-            <div class="guided-eyebrow">Engineering Productization Plan</div>
-            <h3 style="margin:0.15rem 0 0; font-size:1rem;">6-Sprint Roadmap: Turning This Prototype into a Cleanroom Production Product</h3>
+            <div class="guided-eyebrow">Engineering Productization Plan · All 6 Sprints Implemented</div>
+            <h3 style="margin:0.15rem 0 0; font-size:1rem;">6-Sprint Cleanroom Production Suite (Click Any Sprint to Run Live)</h3>
           </div>
-          <span class="badge badge-ok mono">12-Week Fab Deployment Plan</span>
+          <span class="badge badge-ok mono">6 / 6 Sprints Built &amp; Verified ✓</span>
         </div>
         <div class="sprint-grid">
           ${sprints
             .map(
-              (sp) => `
-            <div class="sprint-card">
+              (sp, idx) => `
+            <div class="sprint-card" data-sprint-card-idx="${idx + 1}">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:0.35rem;">
-                <span class="badge mono">${esc(sp.sprint)}</span>
+                <span class="badge badge-ok mono">${esc(sp.sprint)} ✓</span>
                 <span style="font-size:0.72rem; color:var(--muted);">${esc(sp.owner)}</span>
               </div>
               <h4>${esc(sp.title)}</h4>
@@ -443,11 +443,15 @@
               <div class="mono" style="font-size:0.72rem; color:var(--ok); margin-block-start:auto; padding-block-start:0.3rem; border-block-start:1px dashed var(--border);">
                 Exit Gate: ${fmt(sp.exit_criteria)}
               </div>
+              <button type="button" class="btn" data-open-sprint-btn="${idx + 1}" style="margin-block-start:0.45rem;">
+                ▶ Open Live Sprint ${idx + 1} Module
+              </button>
             </div>
           `
             )
             .join("")}
         </div>
+        <div id="sprintLiveHubMount"></div>
       </div>
     `;
   }
@@ -1828,6 +1832,9 @@
     qs("#btnStartGuidedStep1")?.addEventListener("click", () => goToStep("1"));
     qs("#btnIntroGoStep1Bottom")?.addEventListener("click", () => goToStep("1"));
     qs("#btnIntroOpenWorkbench")?.addEventListener("click", () => setInterfaceMode("workbench"));
+    if (activeStep === "0" && window.PANG_SPRINTS_HUB && typeof window.PANG_SPRINTS_HUB.mount === "function") {
+      window.PANG_SPRINTS_HUB.mount();
+    }
 
     // Step 1 buttons
     mount.querySelectorAll("[data-select-preset]").forEach((btn) => {
