@@ -300,8 +300,12 @@
     lines.push({ line: "ob", label: "Overburden", target: `≤ ${spec.ob_max_nm.toFixed(0)} nm`, predicted: `${post.ob_nm.toFixed(0)} ± ${unc.ob_std.toFixed(0)} nm`, prob: round(Phi((spec.ob_max_nm - post.ob_nm) / unc.ob_std), 3) });
     if (!spec.crack_allowed) lines.push({ line: "crack", label: "No crack", target: "no crack", predicted: `${Math.round(post.crack_prob * 100)}% crack risk`, prob: round(1 - post.crack_prob, 3) });
     if (spec.density_min_g_cm3 != null) {
-      const ok = plasma.film_density_g_cm3 >= spec.density_min_g_cm3;
-      lines.push({ line: "density", label: "Film density (model estimate)", target: `≥ ${spec.density_min_g_cm3.toFixed(2)} g/cm³`, predicted: `${plasma.film_density_g_cm3.toFixed(2)} g/cm³ (no measurement)`, prob: ok ? 0.75 : 0.25 });
+      const pDens = Phi((plasma.film_density_g_cm3 - spec.density_min_g_cm3) / 0.025);
+      lines.push({ line: "density", label: "Film density (model estimate)", target: `≥ ${spec.density_min_g_cm3.toFixed(2)} g/cm³`, predicted: `${plasma.film_density_g_cm3.toFixed(2)} g/cm³`, prob: round(pDens, 3) });
+    }
+    if (spec.afm_rq_max_nm != null && post.afm_rms_nm != null) {
+      const pAfm = Phi((spec.afm_rq_max_nm - post.afm_rms_nm) / 0.12);
+      lines.push({ line: "afm_rq", label: "AFM roughness Rq", target: `≤ ${Number(spec.afm_rq_max_nm).toFixed(2)} nm`, predicted: `${Number(post.afm_rms_nm).toFixed(2)} nm`, prob: round(pAfm, 3) });
     }
     lines.forEach((l) => { l.status = likelihood(l.prob); });
     return lines;
@@ -1147,7 +1151,34 @@
               return clone(sb.sprint6_transfer || {});
             }
             enforceStaticRbac(role, "signoff:approve");
-            return clone(sb.sprint6_signoff || {});
+            const s6Mode = (body && body.mode) || "measured_qualification";
+            if (s6Mode === "synthetic_preview") {
+              const prev = clone(sb.sprint6_signoff || {});
+              prev.mode = "synthetic_preview";
+              prev.qualified = false;
+              prev.qualification_eligible = false;
+              prev.is_synthetic_preview = true;
+              prev.evidence_provenance = "synthetic";
+              prev.cycle_time_reduction_pct = null;
+              return prev;
+            }
+            return {
+              program_id: staticSprintProg,
+              mode: "measured_qualification",
+              qualified: false,
+              qualification_eligible: false,
+              is_synthetic_preview: false,
+              evidence_provenance: "measured",
+              cpk_gate_threshold: 1.33,
+              min_required_measured_wafers: 5,
+              n_measured_repeatability_wafers: 1,
+              traceable_wafer_ids: [],
+              ineligibility_reason:
+                "Static preview holds only 1 anchor wafer matching the target recipe; at least 5 traceable measured repeatability wafers are required for fab qualification sign-off.",
+              min_cpk: null,
+              cpk_metrics: {},
+              cycle_time_reduction_pct: null,
+            };
           }
         }
 

@@ -294,7 +294,7 @@
     if (!isGuided && window.PANGStudioBridge) {
       const hasGuidedRuns = Boolean(wfState && wfState.session && (wfState.session.loaded_dataset_id || Number(wfState.session.current_round || 0) > 0));
       if ((opts.preferSandbox || hasGuidedRuns) && typeof window.PANGStudioBridge.switchWorkspace === "function") {
-        window.PANGStudioBridge.switchWorkspace("sandbox");
+        window.PANGStudioBridge.switchWorkspace("guided");
       } else if (typeof window.PANGStudioBridge.refreshWorkbench === "function") {
         window.PANGStudioBridge.refreshWorkbench();
       }

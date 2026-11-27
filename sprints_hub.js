@@ -62,6 +62,8 @@
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data.token) {
       state.roleToken = data.token;
+    } else {
+      state.roleToken = null;
     }
     return state.roleToken;
   }
@@ -509,7 +511,8 @@
           <h4 style="margin:0.15rem 0 0; font-size:0.95rem;">Chamber Hardware Interlocks, Chamber-A → Chamber-B Matching &amp; Fab Qualification</h4>
         </div>
         <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-          <button type="button" class="btn btn-primary" id="btnS6Signoff">▶ Run 6-Wafer Cpk Sign-Off</button>
+          <button type="button" class="btn btn-primary" id="btnS6Signoff">Check Measured Qualification (≥5 Real Wafers)</button>
+          <button type="button" class="btn" id="btnS6Preview">Run Synthetic Cpk Preview (Demo Only)</button>
           <button type="button" class="btn" id="btnS6Transfer">3-Wafer Chamber A→B Transfer</button>
           <button type="button" class="btn" id="btnS6ExportXml">Export Producer .XML/.CSV</button>
           <button type="button" class="btn" id="btnS6TestUnsafe">Test 2350 W Interlock Block</button>
@@ -543,10 +546,34 @@
       ${
         sign
           ? `
+        ${
+          sign.is_synthetic_preview
+            ? `<div class="guided-subcard" style="padding:0.55rem 0.75rem; border-color:var(--warn);">
+                <strong style="color:var(--warn); font-size:0.8rem;">SYNTHETIC MONTE-CARLO PREVIEW · NOT VALID FOR FAB QUALIFICATION:</strong>
+                <span style="font-size:0.79rem;">Generated repeatability wafers illustrate expected Cpk spread only (<code>qualified = false</code>). Actual fab sign-off requires &ge; ${esc(sign.min_required_measured_wafers || 5)} traceable measured repeatability wafers.</span>
+              </div>`
+            : !sign.qualified
+              ? `<div class="guided-subcard" style="padding:0.55rem 0.75rem; border-color:var(--warn);">
+                  <strong style="color:var(--warn); font-size:0.8rem;">QUALIFICATION INELIGIBLE:</strong>
+                  <span style="font-size:0.79rem;">${esc(sign.ineligibility_reason || "Insufficient traceable measured repeatability wafers matching the qualification recipe.")}</span>
+                </div>`
+              : ""
+        }
         <div class="guided-metric-strip">
-          <div class="guided-metric-box"><div class="m-lbl">Pilot Gate Status</div><div class="m-val mono" style="color:var(--ok);">${sign.qualified ? "QUALIFIED ✓" : "PENDING"}</div></div>
-          <div class="guided-metric-box"><div class="m-lbl">Minimum Process Cpk</div><div class="m-val mono">${esc(sign.min_cpk)} (Gate &ge; ${esc(sign.cpk_gate_threshold)})</div></div>
-          <div class="guided-metric-box"><div class="m-lbl">Cleanroom DoE Rounds</div><div class="m-val mono">${esc(sign.cleanroom_iterations_used)} rounds (vs. ${esc(sign.manual_baseline_iterations)} manual · -${esc(sign.cycle_time_reduction_pct)}%)</div></div>
+          <div class="guided-metric-box">
+            <div class="m-lbl">Pilot Gate Status</div>
+            <div class="m-val mono" style="color:${sign.qualified ? "var(--ok)" : "var(--warn)"};">
+              ${sign.is_synthetic_preview ? "SYNTHETIC PREVIEW (NOT QUALIFIED)" : sign.qualified ? "QUALIFIED ✓ (MEASURED)" : "INELIGIBLE / NOT QUALIFIED"}
+            </div>
+          </div>
+          <div class="guided-metric-box">
+            <div class="m-lbl">${sign.is_synthetic_preview ? "Simulated Cpk (Demo)" : "Measured Process Cpk"}</div>
+            <div class="m-val mono">${sign.min_cpk != null ? `${esc(sign.min_cpk)} (Gate ≥ ${esc(sign.cpk_gate_threshold)})` : `N/A (0/${esc(sign.min_required_measured_wafers || 5)} wafers)`}</div>
+          </div>
+          <div class="guided-metric-box">
+            <div class="m-lbl">Evidence Provenance</div>
+            <div class="m-val mono">${esc(sign.evidence_provenance || (sign.is_synthetic_preview ? "synthetic" : "measured"))} (${esc(sign.n_measured_repeatability_wafers ?? 0)} measured)</div>
+          </div>
           ${Object.entries(sign.cpk_metrics || {})
             .map(
               ([k, m]) =>
@@ -555,7 +582,7 @@
             .join("")}
         </div>
       `
-          : `<p style="margin:0; font-size:0.8rem; color:var(--muted);">Use the controls above to verify 6-wafer repeatability <code>Cpk &ge; 1.33</code>, adapt calibrated kinetics to a second chamber in 3 split wafers, or export safety-interlocked Applied Materials Producer multi-step XML recipes.</p>`
+          : `<p style="margin:0; font-size:0.8rem; color:var(--muted);">Use <strong>Check Measured Qualification</strong> to evaluate genuine traceable measured repeatability wafers (&ge; 5 required), or run an explicitly labeled <strong>Synthetic Cpk Preview</strong> for demo illustration only.</p>`
       }
     `;
   }
@@ -830,16 +857,42 @@
     });
 
     document.getElementById("btnS6Signoff")?.addEventListener("click", () => {
-      runSprintTask("Evaluating 6-wafer repeatability cassette & computing Six-Sigma Cpk sign-off…", async () => {
+      runSprintTask("Checking traceable measured repeatability wafers for Six-Sigma Cpk qualification…", async () => {
         state.s6Signoff = await apiCall("/api/sprints/sprint6/action", "POST", {
           program_id: state.programId,
           action: "qualification_signoff",
+          mode: "measured_qualification",
+          n_repeatability_wafers: 6,
+          role: state.activeRole,
+        });
+        state.overview = await apiCall(`/api/sprints/overview?program_id=${encodeURIComponent(state.programId)}`, "GET");
+        if (state.s6Signoff.qualified) {
+          setStatus(
+            `Pilot Qualification Sign-Off Approved (Measured): min Cpk = ${state.s6Signoff.min_cpk} (>= ${state.s6Signoff.cpk_gate_threshold}) across ${state.s6Signoff.n_measured_repeatability_wafers} traceable measured wafers.`,
+            false
+          );
+        } else {
+          setStatus(
+            `Qualification Ineligible: ${state.s6Signoff.ineligibility_reason || "Requires >= 5 traceable measured repeatability wafers."}`,
+            false
+          );
+        }
+        renderPanelOnly();
+      });
+    });
+
+    document.getElementById("btnS6Preview")?.addEventListener("click", () => {
+      runSprintTask("Running synthetic Monte-Carlo Cpk preview (demo only — does not qualify)…", async () => {
+        state.s6Signoff = await apiCall("/api/sprints/sprint6/action", "POST", {
+          program_id: state.programId,
+          action: "qualification_signoff",
+          mode: "synthetic_preview",
           n_repeatability_wafers: 6,
           role: state.activeRole,
         });
         state.overview = await apiCall(`/api/sprints/overview?program_id=${encodeURIComponent(state.programId)}`, "GET");
         setStatus(
-          `Pilot Qualification Sign-Off Approved: min Cpk = ${state.s6Signoff.min_cpk} (>= 1.33) in ${state.s6Signoff.cleanroom_iterations_used} cleanroom rounds!`,
+          `Synthetic Preview Complete (NOT valid for qualification): simulated min Cpk = ${state.s6Signoff.min_cpk}.`,
           false
         );
         renderPanelOnly();

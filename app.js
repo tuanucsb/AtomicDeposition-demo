@@ -1689,16 +1689,42 @@
   });
 
   // ------------------------------------------------------------------
-  // Workspace Isolation (`live` vs `sandbox` per owner rule `s1` / `P0.2`)
+  // Workspace Isolation (`live`, `sandbox`, `guided`, `program:<id>` per rule `s1` / `S8.4`)
   // ------------------------------------------------------------------
+  function isValidWorkspace(ws) {
+    return ws === "live" || ws === "sandbox" || ws === "guided" || (typeof ws === "string" && ws.startsWith("program:") && ws.length > 8);
+  }
+
+  function describeWorkspace(ws) {
+    if (ws === "sandbox") return "SANDBOX SYNTHETIC LAB (`data/sandbox/brain_state.json`)";
+    if (ws === "guided") return "GUIDED TSMC WORKFLOW (`data/sandbox/tsmc_guided/guided_brain_state.json`)";
+    if (typeof ws === "string" && ws.startsWith("program:")) {
+      return `ISOLATED CUSTOMER PROGRAM (${ws.slice(8)})`;
+    }
+    return "LIVE MEASURED BRAIN (`data/brain_state.json`)";
+  }
+
   function syncWorkspaceChrome() {
-    const isSb = activeWorkspace === "sandbox";
-    if (qs("#workspaceSelect")) qs("#workspaceSelect").value = activeWorkspace;
-    if (qs("#sandboxBanner")) qs("#sandboxBanner").hidden = !isSb;
+    const isIsolated = activeWorkspace !== "live";
+    const sel = qs("#workspaceSelect");
+    if (sel) {
+      if (!Array.from(sel.options).some((o) => o.value === activeWorkspace)) {
+        const opt = document.createElement("option");
+        opt.value = activeWorkspace;
+        opt.textContent = activeWorkspace;
+        sel.appendChild(opt);
+      }
+      sel.value = activeWorkspace;
+    }
+    if (qs("#sandboxBanner")) qs("#sandboxBanner").hidden = !isIsolated;
+    const bt = qs("#sandboxBannerText");
+    if (bt && isIsolated) {
+      bt.innerHTML = `<strong style="color:var(--warn);">${esc(describeWorkspace(activeWorkspace))}:</strong> Isolated authoritative workspace — reads and edits here never overwrite your Live Measured Brain or other independent workspaces.`;
+    }
   }
 
   async function setWorkspace(ws, announce = true) {
-    if (ws !== "live" && ws !== "sandbox") return;
+    if (!isValidWorkspace(ws)) return;
     activeWorkspace = ws;
     clientSpecDirty = false;
     syncWorkspaceChrome();
@@ -1708,9 +1734,9 @@
     }
     if (announce) {
       showToast(
-        ws === "sandbox"
-          ? "Switched to isolated Sandbox Synthetic Lab (`data/sandbox/`). Live measured wafers remain untouched."
-          : "Switched to Live Measured Brain (`data/brain_state.json`)."
+        ws === "live"
+          ? "Switched to Live Measured Brain (`data/brain_state.json`)."
+          : `Switched to isolated workspace: ${describeWorkspace(ws)}.`
       );
     }
   }
@@ -4799,12 +4825,8 @@
       if (t) activateTab(t, false);
     },
     switchWorkspace: async (wsName) => {
-      const sel = qs("#workspaceSelect");
-      if (sel && (wsName === "sandbox" || wsName === "live")) {
-        sel.value = wsName;
-        activeWorkspace = wsName;
-        if (qs("#sandboxBanner")) qs("#sandboxBanner").hidden = wsName !== "sandbox";
-        await refreshAll();
+      if (isValidWorkspace(wsName)) {
+        await setWorkspace(wsName, false);
       }
     },
   };

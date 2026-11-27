@@ -28,6 +28,10 @@
             <select id="workspaceSelect" name="workspace" style="padding:0.3rem 0.5rem; border-radius:0.4rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
               <option value="live" selected>Live Measured Brain</option>
               <option value="sandbox">Sandbox Synthetic Lab</option>
+              <option value="guided">Guided TSMC Flow</option>
+              <option value="program:tsmc_n2_plug">Program: TSMC N2 Plug</option>
+              <option value="program:samsung_vnand_partial">Program: Samsung V-NAND</option>
+              <option value="program:intel_18a_bpr_via">Program: Intel 18A PowerVia</option>
             </select>
           </label>
           <button type="button" id="btnHeaderJumpOpt" class="btn btn-primary">Optimize Next Batch</button>
@@ -41,7 +45,7 @@
     <div id="wmStaticNote" class="static-demo-banner" role="status" hidden></div>
 
     <div id="sandboxBanner" class="sandbox-banner" role="status" hidden>
-      <div>
+      <div id="sandboxBannerText">
         <strong style="color:var(--warn);">SANDBOX MODE ACTIVE (`data/sandbox/brain_state.json`):</strong>
         Synthetic campaign packs, generated fake DoE batches, and virtual wafers run exclusively here and never touch your live measured wafer ledger.
       </div>
