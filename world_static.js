@@ -979,7 +979,7 @@
     let staticSpecObMax = null;
     let staticB2Clean = false;
     const STATIC_RBAC = {
-      process_technologist: ["audit:read", "spec:edit", "wafer:ingest", "sim:dispatch", "kb:promote", "kb:rollback", "doe:dispatch", "signoff:approve"],
+      process_technologist: ["audit:read", "spec:edit", "spec:lock", "wafer:ingest", "sim:dispatch", "kb:promote", "kb:rollback", "doe:dispatch", "signoff:approve"],
       metrology_operator: ["audit:read", "wafer:ingest"],
       simulation_engineer: ["audit:read", "sim:dispatch"],
       viewer: ["audit:read"],
@@ -993,6 +993,18 @@
         throw err;
       }
     }
+    function redactProprietaryForViewer(govObj, role) {
+      if (String(role || "").toLowerCase() !== "viewer" || !govObj) return govObj;
+      govObj.proprietary_redacted = true;
+      if (govObj.active_commit && Array.isArray(govObj.active_commit.rules)) {
+        govObj.active_commit.rules = govObj.active_commit.rules.map((r) =>
+          r.ip_tier === "AMAT_PROPRIETARY_CHAMBER"
+            ? { ...r, condition_expr: "[REDACTED — AMAT PROPRIETARY]", prior_adjustments: {} }
+            : r
+        );
+      }
+      return govObj;
+    }
     return {
       ready,
       isStaticDemo: true,
@@ -1001,11 +1013,24 @@
         const cleanPath = String(rawPath || "").split("?")[0];
         const gs = D.guided_snapshots || {};
         const sb = D.sprints_bundle || {};
-        const clone = (obj) => JSON.parse(JSON.stringify(obj || {}));
+        const clone = (obj) => structuredClone(obj ?? {});
 
         if (cleanPath.startsWith("/api/sprints/")) {
-          const role = (body && body.role) || "process_technologist";
+          const role = String((body && body.role) || "process_technologist").toLowerCase();
+          if (cleanPath === "/api/sprints/auth/token") {
+            if (!STATIC_RBAC[role]) {
+              const err = new Error(`Unknown RBAC role '${role}'.`);
+              err.status = 403;
+              throw err;
+            }
+            return {
+              role,
+              actor: (body && body.actor) || "cleanroom.ui",
+              token: `v1|${role}|static|9999999999|static-hmac`,
+            };
+          }
           if (cleanPath === "/api/sprints/reset") {
+            enforceStaticRbac(role, "spec:lock");
             staticSprintProg = "tsmc_n2_plug";
             staticKbVer = "v2.1.0";
             staticSpecObMax = null;
@@ -1022,7 +1047,7 @@
               s1.selected_program.spec.ob_max_nm = staticSpecObMax;
               s1.selected_program.spec_version = 2;
             }
-            const gov = clone(sb.sprint5_governance || {});
+            const gov = redactProprietaryForViewer(clone(sb.sprint5_governance || {}), role);
             gov.active_version = staticKbVer;
             const s2Chambers = clone((sb.sprint2_cassette && sb.sprint2_cassette.chambers) || []);
             if (staticB2Clean) {
@@ -1063,6 +1088,7 @@
             return clone(sb.sprint2_cassette || {});
           }
           if (cleanPath === "/api/sprints/sprint2/chamber_clean") {
+            enforceStaticRbac(role, "wafer:ingest");
             staticB2Clean = true;
             const c = clone(sb.sprint2_cassette || {});
             (c.chambers || []).forEach((ch) => {

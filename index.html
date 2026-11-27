@@ -17,23 +17,22 @@
       <div class="header-actions">
         <span id="platformModeBadge" class="badge badge-ok mono">Live Cleanroom Platform</span>
         <div class="mode-switch-group" role="group" aria-label="Interface view mode">
-          <button type="button" id="btnModeGuided" class="mode-switch-btn" aria-pressed="true">★ Guided Product Flow (Steps 0–8)</button>
-          <button type="button" id="btnModeWorkbench" class="mode-switch-btn" aria-pressed="false">⚙ Full 6-Tab Workbench</button>
+          <button type="button" id="btnModeGuided" class="mode-switch-btn" aria-pressed="true">Guided Product Flow (Steps 0–8)</button>
+          <button type="button" id="btnModeWorkbench" class="mode-switch-btn" aria-pressed="false">Full 6-Tab Workbench</button>
         </div>
         <button type="button" id="btnJumpSprints" class="btn">Product Sprints</button>
-        <button type="button" id="btnGuidedResetTop" class="btn">↺ Restart Guided Demo</button>
+        <button type="button" id="btnGuidedResetTop" class="btn">Restart Demo</button>
         <span id="advancedHeaderControls" style="display:none; flex-wrap:wrap; align-items:center; gap:0.4rem;">
-          <label id="workspaceSelectWrap" for="workspaceSelect" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.78rem; font-weight:600;">
+          <label id="workspaceSelectWrap" for="workspaceSelect" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.8rem; font-weight:600;">
             <span>Workspace:</span>
             <select id="workspaceSelect" name="workspace" style="padding:0.3rem 0.5rem; border-radius:0.4rem; background:var(--surface-alt); color:var(--text); border:1px solid var(--border);">
               <option value="live" selected>Live Measured Brain</option>
               <option value="sandbox">Sandbox Synthetic Lab</option>
             </select>
           </label>
-          <button type="button" id="btnHeaderWorldJump" class="btn" title="Jump to Gap-Fill World Model, AFM Scan &amp; 10-Knob Sweeps">World Model &amp; Sweeps →</button>
+          <button type="button" id="btnHeaderJumpOpt" class="btn btn-primary">Optimize Next Batch</button>
           <button type="button" id="btnOpenSchemaModal" class="btn">8-Layer Schema</button>
           <button type="button" id="btnOpenRuleModal" class="btn" data-live-only>+ Inject Rule</button>
-          <button type="button" id="btnHeaderJumpOpt" class="btn btn-primary">Optimize Next Batch →</button>
           <button type="button" id="btnResetBrain" class="btn" data-live-only>Reset Seed</button>
         </span>
       </div>
@@ -530,9 +529,9 @@
                   <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--border); padding-bottom:0.45rem;">
                     <div>
                       <div class="kpi-label">Predicted Chance Recipe Meets Spec</div>
-                      <div id="wmInlinePspec" style="font-size:1.75rem; font-weight:700; color:var(--ok);">--%</div>
+                      <div id="wmInlinePspec" class="mono" style="font-size:1.75rem; font-weight:700; color:var(--ok);">--%</div>
                     </div>
-                    <div id="wmInlineSpecMeta" class="mono" style="font-size:0.74rem; color:var(--muted); text-align:end;">--</div>
+                    <div id="wmInlineSpecMeta" class="mono" style="font-size:0.76rem; color:var(--muted); text-align:end;">--</div>
                   </div>
                   <div id="wmInlineOutcomesGrid" class="kpi-grid" style="margin:0; grid-template-columns:1fr 1fr; gap:0.45rem;"></div>
                   <div>
@@ -597,8 +596,8 @@
                 <span>Callable 3D Molecular &amp; Atomistic Simulation (`a-C:H:N` Network Relaxation + `LAMMPS ReaxFF / AIREBO` Bridge)</span>
                 <div style="display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;">
                   <span id="molArchetypeBadge" class="badge mono">53-Atom a-C:H:N Cluster</span>
-                  <button type="button" id="btnToggleMolSpin" class="btn" style="font-size:0.74rem; padding:0.22rem 0.5rem;" aria-pressed="true">Auto-Spin: On</button>
-                  <button type="button" id="btnPushMolSandbox" class="btn" style="font-size:0.74rem; padding:0.22rem 0.55rem;">+ Push Coupled Sim to Sandbox</button>
+                  <button type="button" id="btnToggleMolSpin" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" aria-pressed="true">Auto-Spin: On</button>
+                  <button type="button" id="btnPushMolSandbox" class="btn" style="font-size:0.76rem; padding:0.22rem 0.55rem;">+ Push Coupled Sim to Sandbox</button>
                 </div>
               </h2>
 
@@ -609,7 +608,7 @@
                     <span id="molFormulaBadge" class="badge badge-ok mono">--</span>
                   </div>
                   <canvas id="mol3dCanvas" role="img" aria-label="Interactive 3D ball-and-stick molecular model of recipe-matched a-C:H:N amorphous carbon network" style="width:100%; height:265px; display:block; cursor:grab;"></canvas>
-                  <div id="molMetricsStrip" class="telemetry-strip mono" style="margin:0; font-size:0.74rem;"></div>
+                  <div id="molMetricsStrip" class="telemetry-strip mono" style="margin:0; font-size:0.76rem;"></div>
                 </div>
 
                 <div class="rec-card" style="display:flex; flex-direction:column; gap:0.5rem;">
@@ -617,12 +616,12 @@
                     Live-coupled to chamber knobs: PANG's CCP gas-phase model passes wafer temperature T_s, sheath ion energy E_i, and radical flux ratio Γ_(H+NHx)/Γ_C2Hx to relax a 3D stoichiometric nanocluster (`ETKDGv3 + MMFF94s`) and emit ready-to-run `LAMMPS ReaxFF / AIREBO` &amp; `ASE GAP-20` decks.
                   </div>
                   <div style="display:flex; flex-wrap:wrap; gap:0.35rem;">
-                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="pdb">Download 3D `.pdb`</button>
-                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="sdf">Download `.sdf`</button>
-                    <button type="button" class="btn btn-primary" style="font-size:0.73rem; padding:0.22rem 0.55rem;" data-mol-dl="lammps_reaxff">LAMMPS `ReaxFF` Deck</button>
-                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_data">LAMMPS `.lmp` Data</button>
-                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_airebo">LAMMPS `AIREBO`</button>
-                    <button type="button" class="btn" style="font-size:0.73rem; padding:0.22rem 0.5rem;" data-mol-dl="ase_py">ASE / GAP-20 `.py`</button>
+                    <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="pdb">Download 3D `.pdb`</button>
+                    <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="sdf">Download `.sdf`</button>
+                    <button type="button" class="btn btn-primary" style="font-size:0.76rem; padding:0.22rem 0.55rem;" data-mol-dl="lammps_reaxff">LAMMPS `ReaxFF` Deck</button>
+                    <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_data">LAMMPS `.lmp` Data</button>
+                    <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="lammps_airebo">LAMMPS `AIREBO`</button>
+                    <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="ase_py">ASE / GAP-20 `.py`</button>
                   </div>
                   <pre id="molDeckPreview" class="deck-code-box mono"># Generating recipe-matched LAMMPS ReaxFF plasma-surface MD deck...</pre>
                 </div>
@@ -775,7 +774,7 @@
                     <span id="ccpPanelTag" class="badge mono">Predicted · --</span>
                   </div>
                   <canvas id="ccpChemCanvas" role="img" aria-label="Schematic of CCP electrode sheaths, negative hydrocarbon dust trapping, convective Ar sweep, and predicted OES emission lines" style="width:100%; height:255px; display:block;"></canvas>
-                  <div style="font-size:0.74rem; color:var(--muted);">
+                  <div style="font-size:0.76rem; color:var(--muted);">
                     Shows RF sheath compression (13.56 vs 27.12 MHz), positive-potential bulk trapping of <b>C₂H⁻→C₁₂H⁻</b> anions vs convective <b>Ar</b> sweep (τ_res) + volatile <b>HCN↑</b> scavenging, and predicted OES lines.
                   </div>
                 </div>
@@ -786,7 +785,7 @@
                     <span id="knudsenPanelTag" class="badge mono">Predicted · --</span>
                   </div>
                   <canvas id="knudsenDepthCanvas" role="img" aria-label="Cross-section of ballistic Knudsen bounces inside a 110 nm via alongside the 11-point depth-resolved growth velocity curve" style="width:100%; height:255px; display:block;"></canvas>
-                  <div style="font-size:0.74rem; color:var(--muted);">
+                  <div style="font-size:0.76rem; color:var(--muted);">
                     Left: 110 nm (AR 9.1) ballistic trajectories bouncing <b>1/β_eff</b> times on <b>-H/-NH₂</b> capped walls + 2π view-factor top scour. Right: 11-point <b>v_net(z)</b> (nm/min) for 110 nm vs 225 nm.
                   </div>
                 </div>
@@ -797,7 +796,7 @@
                     <span id="bondingPanelTag" class="badge mono">Predicted · --</span>
                   </div>
                   <canvas id="bondingCrackCanvas" role="img" aria-label="Griffith overburden delamination phase map plotting planar overburden thickness against compressive stress" style="width:100%; height:255px; display:block;"></canvas>
-                  <div style="font-size:0.74rem; color:var(--muted);">
+                  <div style="font-size:0.76rem; color:var(--muted);">
                     Maps predicted planar <b>t_OB</b> vs compressive <b>|σ|</b> against Griffith fracture boundary <b>G = σ²t_OB/(2E') = G_c</b>; coupons are plotted only when stress is measured.
                   </div>
                 </div>
@@ -806,7 +805,7 @@
                 <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
                   <div>
                     <strong style="font-size:0.84rem;">Most Relevant Papers &amp; Benchmarks for Your Active What-If Configuration</strong>
-                    <div id="kgLiveConfigSummary" class="mono" style="font-size:0.73rem; color:var(--brand); margin-block-start:0.12rem;">Matching active recipe against 102 verified papers &amp; 10 datasets…</div>
+                    <div id="kgLiveConfigSummary" class="mono" style="font-size:0.76rem; color:var(--brand); margin-block-start:0.12rem;">Matching active recipe against 102 verified papers &amp; 10 datasets…</div>
                   </div>
                   <div style="display:flex; flex-wrap:wrap; gap:0.45rem;">
                     <button type="button" id="btnMatchWhatIfInKb" class="btn btn-primary">Search Full Configuration in Knowledge Base (Tab 5) →</button>
@@ -1326,7 +1325,7 @@
 
   <!-- Native Modal Dialog for Injecting New Human Intelligence Rule -->
   <dialog id="ruleDialog" closedby="any" aria-labelledby="ruleDialogTitle">
-    <h1 id="ruleDialogTitle" style="margin:0 0 0.35rem; font-size:1.1rem;">Inject Human Intelligence Rule into PANG Brain</h1>
+    <h2 id="ruleDialogTitle" style="margin:0 0 0.35rem; font-size:1.1rem;">Inject Human Intelligence Rule into PANG Brain</h2>
     <p style="margin:0 0 0.65rem; font-size:0.82rem; color:var(--muted);">
       Encode process-engineer causal intuition or fab guardrails. The Brain immediately updates its prior field, causal graph, and active optimizer.
     </p>
@@ -1373,7 +1372,7 @@
         </label>
         <label class="full">Condition
           <input id="hrCond" type="text" value="ar_sccm >= 10500 and nc_ratio >= 0.34" aria-describedby="hrCondHelp" />
-          <span id="hrCondHelp" style="font-size:0.74rem;color:var(--muted);">
+          <span id="hrCondHelp" style="font-size:0.76rem;color:var(--muted);">
             Variables: freq_mhz, power_w, gap_mils, pressure_torr, ar_sccm, c2h2_sccm, nh3_sccm, temp_c, nc_ratio, trim_fraction, ob_nm, dust_margin, ion_energy_ev, beta_eff. Operators: and, or, not, &lt; &lt;= &gt; &gt;= == !=, + − * /.
           </span>
         </label>
@@ -1416,7 +1415,7 @@
 
   <!-- Native Modal Dialog for Typed-Confirmation Wafer Deletion (`P0.2` + `dialog` guide) -->
   <dialog id="deleteWaferDialog" closedby="any" aria-labelledby="deleteWaferTitle">
-    <h1 id="deleteWaferTitle" style="margin:0 0 0.35rem; font-size:1.08rem;">Delete Wafer Record?</h1>
+    <h2 id="deleteWaferTitle" style="margin:0 0 0.35rem; font-size:1.08rem;">Delete Wafer Record?</h2>
     <p id="deleteWaferDesc" style="margin:0 0 0.65rem; font-size:0.82rem; color:var(--muted);">
       The current brain state file will be backed up to <code>data/backups/</code> before deletion.
     </p>

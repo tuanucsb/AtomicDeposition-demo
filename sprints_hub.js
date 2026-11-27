@@ -8,6 +8,7 @@
   const state = {
     activeSprint: 1,
     activeRole: "process_technologist",
+    roleToken: null,
     programId: "tsmc_n2_plug",
     busy: false,
     overview: null,
@@ -22,6 +23,22 @@
     lastBanner: null,
   };
 
+  try {
+    const sp = new URL(window.location.href).searchParams;
+    const initSprint = Number(sp.get("sprint"));
+    if (initSprint >= 1 && initSprint <= 6) {
+      state.activeSprint = initSprint;
+    }
+  } catch (_err) { /* ignore */ }
+
+  function syncSprintUrl() {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("sprint", String(state.activeSprint));
+      window.history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch (_err) { /* ignore */ }
+  }
+
   function esc(v) {
     return String(v ?? "")
       .replace(/&/g, "&amp;")
@@ -30,17 +47,46 @@
       .replace(/"/g, "&quot;");
   }
 
-  async function apiCall(path, method, body) {
+  async function ensureRoleToken(roleName) {
+    const targetRole = roleName || state.activeRole;
     if (window.WM_BACKEND && typeof window.WM_BACKEND.handle === "function") {
-      const staticBody = body && typeof body === "object" ? { role: state.activeRole, ...body } : { role: state.activeRole };
+      const res = await window.WM_BACKEND.handle("/api/sprints/auth/token", { role: targetRole, actor: "cleanroom.ui" });
+      state.roleToken = res && res.token ? res.token : null;
+      return state.roleToken;
+    }
+    const resp = await fetch("/api/sprints/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: targetRole, actor: "cleanroom.ui" }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.token) {
+      state.roleToken = data.token;
+    }
+    return state.roleToken;
+  }
+
+  async function apiCall(path, method, body) {
+    if (!state.roleToken && path !== "/api/sprints/auth/token") {
+      await ensureRoleToken(state.activeRole).catch(() => null);
+    }
+    if (window.WM_BACKEND && typeof window.WM_BACKEND.handle === "function") {
+      const staticBody =
+        body && typeof body === "object"
+          ? { role: state.activeRole, token: state.roleToken, ...body }
+          : { role: state.activeRole, token: state.roleToken };
       return window.WM_BACKEND.handle(path, staticBody);
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      "X-PANG-Role": state.activeRole,
+    };
+    if (state.roleToken) {
+      headers["X-PANG-Token"] = state.roleToken;
     }
     const opts = {
       method: method || "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-PANG-Role": state.activeRole,
-      },
+      headers,
     };
     if (body && method !== "GET") opts.body = JSON.stringify(body);
     const resp = await fetch(path, opts);
@@ -253,7 +299,7 @@
           <div class="guided-metric-box">
             <div class="m-lbl">${esc(c.chamber_id)} Seasoning</div>
             <div class="m-val mono">${esc(c.cum_carbon_um)} µm C (${esc(c.wafers_since_clean)} wafers)</div>
-            <div style="font-size:0.72rem; color:${c.clean_advisory ? "var(--warn)" : "var(--ok)"};">
+            <div style="font-size:0.76rem; color:${c.clean_advisory ? "var(--warn)" : "var(--ok)"};">
               ${c.clean_advisory ? "⚠ Preventive NF₃/O₂ Clean Advisory (>= 12 µm)" : "✓ Liner Seasoning Nominal"}
             </div>
           </div>
@@ -372,7 +418,7 @@
               lp.atomistic_reaxff
                 ? `<strong>3D Atomistic Relaxation (${esc(lp.atomistic_reaxff.force_field)}) + LAMMPS ReaxFF Deck (${esc(lp.atomistic_reaxff.lammps_script_lines)} lines):</strong>
                    <div class="mono" style="margin-block:0.25rem;">${esc(lp.atomistic_reaxff.archetype_label)} · ${esc(lp.atomistic_reaxff.n_atoms)} atoms · E=${esc(lp.atomistic_reaxff.lowest_energy_kcal_mol)} kcal/mol · ρ_MD=${esc(lp.atomistic_reaxff.packing_density_g_cm3)} g/cm³</div>
-                   <pre class="mono" style="margin:0; padding:0.45rem; border-radius:0.4rem; background:var(--surface-alt); border:1px solid var(--border); font-size:0.69rem; max-block-size:135px; overflow:auto;">${esc(lp.atomistic_reaxff.lammps_script_preview)}</pre>`
+                   <pre class="mono" style="margin:0; padding:0.45rem; border-radius:0.4rem; background:var(--surface-alt); border:1px solid var(--border); font-size:0.78rem; max-block-size:135px; overflow:auto;">${esc(lp.atomistic_reaxff.lammps_script_preview)}</pre>`
                 : ""
             }
           </div>
@@ -859,6 +905,7 @@
 
   async function selectSprint(num, scrollToHub) {
     state.activeSprint = Number(num) || 1;
+    syncSprintUrl();
     syncSprintCardHighlights();
     renderPanelOnly();
     if (scrollToHub) {
@@ -917,10 +964,13 @@
       btn.addEventListener("click", () => selectSprint(Number(btn.getAttribute("data-select-sprint")), false));
     });
     bar.querySelectorAll("[data-select-role]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         state.activeRole = btn.getAttribute("data-select-role") || "process_technologist";
+        state.roleToken = null;
+        await ensureRoleToken(state.activeRole).catch(() => null);
+        state.overview = await apiCall(`/api/sprints/overview?program_id=${encodeURIComponent(state.programId)}`, "GET").catch(() => state.overview);
         syncSprintCardHighlights();
-        setStatus(`Switched active cleanroom RBAC role to '${state.activeRole}'.`, false);
+        setStatus(`Switched active cleanroom RBAC role to '${state.activeRole}' (HMAC token signed).`, false);
         renderPanelOnly();
       });
     });

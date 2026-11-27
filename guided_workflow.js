@@ -247,10 +247,33 @@
     }
   }
 
+  function syncGuidedUrl(mode, stepId) {
+    try {
+      const u = new URL(window.location.href);
+      if (mode === "workbench") {
+        u.searchParams.set("mode", "workbench");
+        u.searchParams.delete("step");
+        u.searchParams.delete("sprint");
+        const selTab = document.querySelector('.tablist-scroller [role="tab"][aria-selected="true"]');
+        if (selTab && selTab.id) {
+          u.searchParams.set("tab", selTab.id.replace(/^tab-/, ""));
+        }
+      } else {
+        u.searchParams.set("mode", "guided");
+        u.searchParams.set("step", stepId || activeStep || "0");
+        u.searchParams.delete("tab");
+        if ((stepId || activeStep) !== "0") {
+          u.searchParams.delete("sprint");
+        }
+      }
+      window.history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch (_err) { /* ignore */ }
+  }
+
   // ------------------------------------------------------------------------
   // View Mode Switcher (Guided Product Flow vs. Full 6-Tab Workbench)
   // ------------------------------------------------------------------------
-  function setInterfaceMode(mode) {
+  function setInterfaceMode(mode, opts = {}) {
     const guidedEl = qs("#guidedProductStudio");
     const benchEl = qs("#advancedWorkbenchWrapper");
     const advHdr = qs("#advancedHeaderControls");
@@ -264,7 +287,17 @@
     if (btnGuided) btnGuided.setAttribute("aria-pressed", isGuided ? "true" : "false");
     if (btnBench) btnBench.setAttribute("aria-pressed", isGuided ? "false" : "true");
 
+    if (!opts.skipUrl) {
+      syncGuidedUrl(isGuided ? "guided" : "workbench", activeStep);
+    }
+
     if (!isGuided && window.PANGStudioBridge) {
+      const hasGuidedRuns = Boolean(wfState && wfState.session && (wfState.session.loaded_dataset_id || Number(wfState.session.current_round || 0) > 0));
+      if ((opts.preferSandbox || hasGuidedRuns) && typeof window.PANGStudioBridge.switchWorkspace === "function") {
+        window.PANGStudioBridge.switchWorkspace("sandbox");
+      } else if (typeof window.PANGStudioBridge.refreshWorkbench === "function") {
+        window.PANGStudioBridge.refreshWorkbench();
+      }
       requestAnimationFrame(() => {
         window.PANGStudioBridge.drawAllCanvases();
       });
@@ -292,8 +325,11 @@
     });
   }
 
-  function goToStep(stepId) {
+  function goToStep(stepId, opts = {}) {
     activeStep = STEP_ORDER.includes(stepId) ? stepId : "0";
+    if (!opts.skipUrl) {
+      syncGuidedUrl("guided", activeStep);
+    }
     updateStepperBar();
     renderCurrentStep();
   }
@@ -389,9 +425,9 @@
                   <strong style="font-size:0.84rem;">${esc(L.name)}</strong>
                   <span class="badge mono">Layer ${L.tier}</span>
                 </div>
-                <div style="font-size:0.79rem; margin-block-start:0.22rem;">${esc(L.short)}</div>
-                ${L.io_flow ? `<div class="mono" style="font-size:0.71rem; color:var(--muted); margin-block-start:0.2rem;">${esc(L.io_flow)}</div>` : ""}
-                <div style="font-size:0.73rem; color:var(--brand); margin-block-start:0.2rem;">↳ ${esc(L.replaces)}</div>
+                <div style="font-size:0.8rem; margin-block-start:0.22rem;">${esc(L.short)}</div>
+                ${L.io_flow ? `<div class="mono" style="font-size:0.78rem; color:var(--muted); margin-block-start:0.2rem;">${esc(L.io_flow)}</div>` : ""}
+                <div style="font-size:0.78rem; color:var(--brand); margin-block-start:0.2rem;">↳ ${esc(L.replaces)}</div>
               </div>
             `
               )
@@ -418,7 +454,7 @@
         </div>
       </div>
 
-      <div id="productSprintsSection" class="guided-subcard" style="background:var(--surface);">
+      <div id="productSprintsSection" class="guided-subcard" style="border:0; border-block-start:1px solid var(--border); border-radius:0; padding:1rem 0 0; background:transparent;">
         <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
           <div>
             <div class="guided-eyebrow">Engineering Productization Plan · All 6 Sprints Implemented</div>
@@ -433,14 +469,14 @@
             <div class="sprint-card" data-sprint-card-idx="${idx + 1}">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:0.35rem;">
                 <span class="badge badge-ok mono">${esc(sp.sprint)} ✓</span>
-                <span style="font-size:0.72rem; color:var(--muted);">${esc(sp.owner)}</span>
+                <span style="font-size:0.78rem; color:var(--muted);">${esc(sp.owner)}</span>
               </div>
               <h4>${esc(sp.title)}</h4>
-              <div style="font-size:0.78rem;">${esc(sp.goal)}</div>
+              <div style="font-size:0.8rem;">${esc(sp.goal)}</div>
               <ul>
                 ${sp.deliverables.map((d) => `<li>${fmt(d)}</li>`).join("")}
               </ul>
-              <div class="mono" style="font-size:0.72rem; color:var(--ok); margin-block-start:auto; padding-block-start:0.3rem; border-block-start:1px dashed var(--border);">
+              <div class="mono" style="font-size:0.78rem; color:var(--ok); margin-block-start:auto; padding-block-start:0.3rem; border-block-start:1px dashed var(--border);">
                 Exit Gate: ${fmt(sp.exit_criteria)}
               </div>
               <button type="button" class="btn" data-open-sprint-btn="${idx + 1}" style="margin-block-start:0.45rem;">
@@ -636,7 +672,7 @@
             <div class="guided-subcard ${active ? "is-selected" : ""}">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:0.35rem;">
                 <span class="badge ${idx === 0 ? "badge-ok" : ""} mono">${idx === 0 ? "Recommended Preloaded Lot" : "Stress-Test Lot"}</span>
-                <span class="mono" style="font-size:0.74rem;">${lot.wafer_count} Wafers</span>
+                <span class="mono" style="font-size:0.76rem;">${lot.wafer_count} Wafers</span>
               </div>
               <h3 style="margin:0; font-size:0.92rem;">${esc(lot.title)}</h3>
               <p style="margin:0; font-size:0.78rem; color:var(--muted);">${esc(lot.description)}</p>
@@ -651,7 +687,7 @@
         <div class="guided-subcard">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span class="badge mono">Custom Cleanroom File</span>
-            <span class="mono" style="font-size:0.74rem;">.CSV / .JSON</span>
+            <span class="mono" style="font-size:0.76rem;">.CSV / .JSON</span>
           </div>
           <h3 style="margin:0; font-size:0.92rem;">Upload Customer / Lab Metrology File</h3>
           <p style="margin:0; font-size:0.78rem; color:var(--muted);">
@@ -707,7 +743,7 @@
               <div style="font-weight:600; line-height:1.3;">
                 <a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${esc(p.title)} ↗</a>
               </div>
-              <div class="mono" style="font-size:0.71rem; color:var(--muted);">${esc(p.citation)}</div>
+              <div class="mono" style="font-size:0.76rem; color:var(--muted);">${esc(p.citation)}</div>
               <div style="font-size:0.75rem; color:var(--muted);">${esc(p.takeaway)}</div>
               <div class="match-reason-row">
                 ${(p.matched_reasons || []).map((r) => `<span class="match-reason-tag">✓ ${esc(r)}</span>`).join("")}
@@ -764,11 +800,11 @@
             <div class="guided-subcard ${active ? "is-selected" : ""}">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:0.35rem;">
                 <span class="badge ${v.recommended ? "badge-ok" : ""} mono">${esc(v.badge)}</span>
-                <span class="mono" style="font-size:0.74rem;">${v.proprietary_rule_ids.length} Prop. Rules</span>
+                <span class="mono" style="font-size:0.76rem;">${v.proprietary_rule_ids.length} Prop. Rules</span>
               </div>
               <h3 style="margin:0; font-size:0.93rem;">${esc(v.title)}</h3>
               <p style="margin:0; font-size:0.78rem; color:var(--muted);">${esc(v.summary)}</p>
-              <div style="font-size:0.74rem; color:var(--brand); margin-block-start:auto;">Impact: ${esc(v.expected_impact)}</div>
+              <div style="font-size:0.76rem; color:var(--brand); margin-block-start:auto;">Impact: ${esc(v.expected_impact)}</div>
               <button type="button" class="btn ${active ? "" : "btn-primary"}" data-select-kb="${esc(v.key)}">
                 ${active ? `Selected: ${esc(v.kb_version)} ✓` : `Select ${esc(v.kb_version)}`}
               </button>
@@ -787,7 +823,7 @@
             <div class="guided-subcard" style="border-inline-start:3px solid ${i === 0 ? "var(--brand)" : i === 1 ? "var(--warn)" : "var(--ok)"};">
               <span class="badge ${i === 1 ? "badge-warn" : i === 2 ? "badge-ok" : ""} mono">${esc(col.badge)}</span>
               <strong style="font-size:0.86rem;">${esc(col.source_type)}</strong>
-              <div style="font-size:0.73rem; color:var(--muted);">Governance: ${fmt(col.access_scope)}</div>
+              <div style="font-size:0.76rem; color:var(--muted);">Governance: ${fmt(col.access_scope)}</div>
               <ul style="margin:0.2rem 0 0; padding-inline-start:1.1rem; font-size:0.77rem; display:flex; flex-direction:column; gap:0.28rem;">
                 ${col.items.map((it) => `<li>${fmt(it)}</li>`).join("")}
               </ul>
@@ -806,9 +842,9 @@
               (c) => `
             <div style="padding:0.55rem 0.65rem; border-radius:0.45rem; background:var(--surface); border:1px solid var(--border);">
               <div style="font-weight:700; font-size:0.81rem;">${esc(c.stage)}</div>
-              <div class="mono" style="font-size:0.74rem; color:var(--brand); margin-block:0.18rem;">${esc(c.reaction)}</div>
+              <div class="mono" style="font-size:0.76rem; color:var(--brand); margin-block:0.18rem;">${esc(c.reaction)}</div>
               <div style="font-size:0.77rem; color:var(--muted);">${fmt(c.mechanism)}</div>
-              <div style="font-size:0.73rem; margin-block-start:0.2rem;"><b>Model Coupling:</b> ${fmt(c.model_coupling)}</div>
+              <div style="font-size:0.76rem; margin-block-start:0.2rem;"><b>Model Coupling:</b> ${fmt(c.model_coupling)}</div>
             </div>
           `
             )
@@ -822,9 +858,9 @@
               (p) => `
             <div style="padding:0.55rem 0.65rem; border-radius:0.45rem; background:var(--surface); border:1px solid var(--border);">
               <div style="font-weight:700; font-size:0.81rem;">${esc(p.stage)}</div>
-              <div class="mono" style="font-size:0.74rem; color:var(--brand); margin-block:0.18rem;">${esc(p.equation)}</div>
+              <div class="mono" style="font-size:0.76rem; color:var(--brand); margin-block:0.18rem;">${esc(p.equation)}</div>
               <div style="font-size:0.77rem; color:var(--muted);">${fmt(p.mechanism)}</div>
-              <div style="font-size:0.73rem; margin-block-start:0.2rem;"><b>Model Coupling:</b> ${fmt(p.model_coupling)}</div>
+              <div style="font-size:0.76rem; margin-block-start:0.2rem;"><b>Model Coupling:</b> ${fmt(p.model_coupling)}</div>
             </div>
           `
             )
@@ -843,7 +879,7 @@
                 <strong>${esc(r.title)}</strong>
                 <span class="badge ${r.guidance === "favor" ? "badge-ok" : "badge-warn"} mono">${esc(r.guidance)}</span>
               </div>
-              <div class="mono" style="color:var(--brand); font-size:0.72rem; margin-block:0.2rem;">if (${esc(r.condition_expr)})</div>
+              <div class="mono" style="color:var(--brand); font-size:0.76rem; margin-block:0.2rem;">if (${esc(r.condition_expr)})</div>
               <div style="color:var(--muted);">${esc(r.description)}</div>
             </div>
           `
@@ -984,10 +1020,10 @@
                     <tr>
                       <th scope="row" class="mono">${esc(c.sim_tag)}</th>
                       <td style="font-size:0.78rem;">${esc(c.purpose)}</td>
-                      <td class="mono" style="font-size:0.74rem;">${r.freq_mhz} MHz · NH₃=${r.nh3_sccm} · ${r.temp_c}°C · Trim ${Math.round((r.trim_fraction || 0) * 100)}%</td>
+                      <td class="mono" style="font-size:0.76rem;">${r.freq_mhz} MHz · NH₃=${r.nh3_sccm} · ${r.temp_c}°C · Trim ${Math.round((r.trim_fraction || 0) * 100)}%</td>
                       <td class="mono" style="font-size:0.75rem;">${p.ion_energy_ev} eV · β=${p.beta_eff} · Φ=${p.thiele_110}</td>
                       <td class="mono" style="font-size:0.76rem;"><b>PH=${f.ph_depth_110_nm} nm</b> · OB=${f.ob_nm} nm</td>
-                      <td class="mono" style="font-size:0.74rem;">${esc(m.formula)} (${m.num_atoms} at) · ρ=${m.predicted_density_g_cm3} g/cm³</td>
+                      <td class="mono" style="font-size:0.76rem;">${esc(m.formula)} (${m.num_atoms} at) · ρ=${m.predicted_density_g_cm3} g/cm³</td>
                     </tr>
                   `;
                   })
@@ -1031,7 +1067,7 @@
         <ol style="margin:0.2rem 0 0; padding-inline-start:1.25rem; font-size:0.83rem; display:flex; flex-direction:column; gap:0.38rem;">
           ${(und.key_findings || []).map((f) => `<li>${esc(f)}</li>`).join("")}
         </ol>
-        <div class="mono" style="font-size:0.74rem; color:var(--muted); padding-block-start:0.4rem; border-block-start:1px dashed var(--border);">
+        <div class="mono" style="font-size:0.76rem; color:var(--muted); padding-block-start:0.4rem; border-block-start:1px dashed var(--border);">
           Calibrated Kinetics θ̂: β_c0=${th.beta_c0?.toFixed?.(4) ?? "--"} · k_pass=${th.k_pass?.toFixed?.(2) ?? "--"} · γ_rec=${th.gamma_rec?.toFixed?.(3) ?? "--"} · y_iece=${th.y_iece?.toFixed?.(2) ?? "--"} · ob_scale=${th.ob_scale?.toFixed?.(2) ?? "--"} · crack_OB=${th.crack_thresh_ob?.toFixed?.(0) ?? "--"} nm
         </div>
       </div>
@@ -1078,9 +1114,9 @@
         </div>
         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
           <button type="button" id="btnRunWfBo" class="btn btn-primary">
-            🎯 ${hasCurrentRoundPlan ? `Re-Run Bayesian Optimizer (Round ${nextRound})` : `Run Bayesian Optimization for Round ${nextRound}`}
+            ${hasCurrentRoundPlan ? `Re-Run Bayesian Optimizer (Round ${nextRound})` : `Run Bayesian Optimization for Round ${nextRound}`}
           </button>
-          ${cands.length ? `<button type="button" id="btnExportWfBoCsv" class="btn">⬇ Export Run-Sheet (.csv)</button>` : ""}
+          ${cands.length ? `<button type="button" id="btnExportWfBoCsv" class="btn">Export Run-Sheet (.csv)</button>` : ""}
         </div>
       </div>
 
@@ -1088,7 +1124,7 @@
 
       ${
         !cands.length
-          ? `<div class="guided-subcard"><p style="margin:0; font-size:0.85rem; color:var(--muted);">Click <b>🎯 Run Bayesian Optimization for Round ${nextRound}</b> above to generate the 3-wafer cleanroom DoE run-sheet with logged UUID prediction IDs.</p></div>`
+          ? `<div class="guided-subcard"><p style="margin:0; font-size:0.85rem; color:var(--muted);">Click <b>Run Bayesian Optimization for Round ${nextRound}</b> above to generate the 3-wafer cleanroom DoE run-sheet with logged UUID prediction IDs.</p></div>`
           : `
         <div class="guided-three-col">
           ${cands
@@ -1112,10 +1148,10 @@
                   <div>Pred OB: <b>${p.ob_nm} ± ${p.ob_std} nm</b> · Pred ρ: <b>${p.film_density_g_cm3} g/cm³</b></div>
                   <div style="color:var(--ok); font-weight:700; margin-block-start:0.15rem;">Predicted P(Meets TSMC Spec): ${(p.p_meets_spec * 100).toFixed(0)}%</div>
                 </div>
-                <div style="font-size:0.75rem; color:var(--muted); margin-block-start:auto;">
+                <div style="font-size:0.78rem; color:var(--muted); margin-block-start:auto;">
                   <b>Why BO picked this wafer:</b> ${esc(c.rationale)}
                 </div>
-                <div class="mono" style="font-size:0.69rem; color:var(--muted);">Logged UUID: ${esc(c.suggestion_id || "pending")}</div>
+                <div class="mono" style="font-size:0.76rem; color:var(--muted);">Logged UUID: ${esc(c.suggestion_id || "pending")}</div>
               </div>
             `;
             })
@@ -1150,7 +1186,7 @@
         </div>
         ${
           !wfState.session.converged
-            ? `<button type="button" id="btnIngestPrebuiltRound" class="btn btn-primary">📥 Load &amp; Auto-Grade Round ${targetRound} Cleanroom Results (3 Wafers)</button>`
+            ? `<button type="button" id="btnIngestPrebuiltRound" class="btn btn-primary">Load &amp; Auto-Grade Round ${targetRound} Cleanroom Results (3 Wafers)</button>`
             : `<span class="badge badge-ok mono">Qualified Winner Found: ${esc(wfState.session.winning_wafer_id)} ✓</span>`
         }
       </div>
@@ -1170,7 +1206,7 @@
           ${renderWaferGradingTable(latestRound.summary.wafers, `${latestRound.label} Line-by-Line TSMC Scorecard`)}
         </div>
       `
-          : `<div class="guided-subcard"><p style="margin:0; font-size:0.84rem; color:var(--muted);">Click <b>📥 Load &amp; Auto-Grade Round ${targetRound} Cleanroom Results</b> above to ingest the new 3-wafer experimental split.</p></div>`
+          : `<div class="guided-subcard"><p style="margin:0; font-size:0.84rem; color:var(--muted);">Click <b>Load &amp; Auto-Grade Round ${targetRound} Cleanroom Results</b> above to ingest the new 3-wafer experimental split.</p></div>`
       }
 
       <details class="guided-details">
@@ -1307,8 +1343,8 @@
               <h3 style="margin:0.15rem 0 0; font-size:1.05rem;">Qualified Chamber Recipe: ${esc(win.exp_id)} (Applied Materials Producer® 27.12 MHz Cyclic DED)</h3>
             </div>
             <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
-              <button type="button" id="btnExportQualJson" class="btn btn-primary">⬇ Export Qualification Sign-Off (.json)</button>
-              <button type="button" id="btnOpenBenchFromWin" class="btn">⚙ Inspect in 6-Tab Workbench</button>
+              <button type="button" id="btnExportQualJson" class="btn btn-primary">Export Qualification Sign-Off (.json)</button>
+              <button type="button" id="btnOpenBenchFromWin" class="btn">Inspect in 6-Tab Workbench</button>
             </div>
           </div>
 
@@ -2145,7 +2181,9 @@
       downloadBlob("tsmc_n2_qualification_signoff.json", JSON.stringify(payload, null, 2), "application/json");
     });
 
-    qs("#btnOpenBenchFromWin")?.addEventListener("click", () => setInterfaceMode("workbench"));
+    qs("#btnOpenBenchFromWin")?.addEventListener("click", () =>
+      setInterfaceMode("workbench", { preferSandbox: true })
+    );
 
     qs("#btnStep8ResetReplay")?.addEventListener("click", (ev) =>
       runAction(ev.currentTarget, async () => {
@@ -2159,6 +2197,29 @@
   // ------------------------------------------------------------------------
   // Top-Level Initialization
   // ------------------------------------------------------------------------
+  function applyUrlRouteState() {
+    try {
+      const sp = new URL(window.location.href).searchParams;
+      const qMode = sp.get("mode");
+      const qStep = sp.get("step");
+      const qTab = sp.get("tab");
+      const qSprint = Number(sp.get("sprint"));
+      if (qMode === "workbench") {
+        setInterfaceMode("workbench", { skipUrl: true });
+        if (qTab && window.PANGStudioBridge && typeof window.PANGStudioBridge.activateTabById === "function") {
+          window.PANGStudioBridge.activateTabById(`tab-${qTab}`);
+        }
+      } else {
+        const targetStep = qStep && STEP_ORDER.includes(qStep) ? qStep : activeStep;
+        setInterfaceMode("guided", { skipUrl: true });
+        goToStep(targetStep, { skipUrl: true });
+        if (targetStep === "0" && qSprint >= 1 && qSprint <= 6 && window.PANG_SPRINTS_HUB) {
+          window.PANG_SPRINTS_HUB.selectSprint(qSprint, false);
+        }
+      }
+    } catch (_err) { /* ignore */ }
+  }
+
   async function initGuidedStudio() {
     if (!qs("#guidedProductStudio")) return;
 
@@ -2186,6 +2247,8 @@
       btn.addEventListener("click", () => goToStep(btn.getAttribute("data-guided-step")));
     });
 
+    window.addEventListener("popstate", applyUrlRouteState);
+
     window.addEventListener("resize", () => {
       if (!qs("#guidedProductStudio")?.hidden) drawStepCanvases();
     });
@@ -2195,9 +2258,23 @@
 
     try {
       wfState = await wfCall("/api/workflow/state", "GET");
-      activeStep = "0";
+      let initStep = "0";
+      let initMode = "guided";
+      try {
+        const sp = new URL(window.location.href).searchParams;
+        if (sp.get("step") && STEP_ORDER.includes(sp.get("step"))) {
+          initStep = sp.get("step");
+        }
+        if (sp.get("mode") === "workbench") {
+          initMode = "workbench";
+        }
+      } catch (_err) { /* ignore */ }
+      activeStep = initStep;
       updateStepperBar();
       renderCurrentStep();
+      if (initMode === "workbench") {
+        setInterfaceMode("workbench", { skipUrl: true });
+      }
     } catch (err) {
       const mount = qs("#guidedStageMount");
       if (mount) {
