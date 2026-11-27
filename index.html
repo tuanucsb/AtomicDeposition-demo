@@ -492,6 +492,19 @@
               </div>
             </div>
 
+            <div class="card">
+              <h2 class="section-title">
+                <span>Wafer Process Frontier &amp; Quality Envelope (OB vs. Fill Depth &amp; Film Density vs. AFM R_q)</span>
+                <span id="paritySummaryBadge" class="badge mono">Solid = Measured · Hollow = Synthetic</span>
+              </h2>
+              <figure style="margin:0;">
+                <canvas id="parityCanvas" role="img" aria-label="Dual engineering chart plotting active workspace wafers in overburden versus fill depth alongside film density versus AFM surface roughness with ClientSpec target windows" style="width:100%; height:255px; display:block;"></canvas>
+                <figcaption style="font-size:0.78rem; color:var(--muted); margin-top:0.35rem;">
+                  Left: Active workspace wafers (solid = measured, hollow = synthetic) and live BO suggestions plotted against the shaded <code>ClientSpec</code> window. Right: Film density <code>ρ</code> vs. inline <code>AFM R_q</code> roughness (or OB when AFM is unmeasured).
+                </figcaption>
+              </figure>
+            </div>
+
           </div>
         </div>
 

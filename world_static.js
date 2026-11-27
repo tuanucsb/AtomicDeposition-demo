@@ -1002,8 +1002,8 @@
       govObj.proprietary_redacted = true;
       if (govObj.active_commit && Array.isArray(govObj.active_commit.rules)) {
         govObj.active_commit.rules = govObj.active_commit.rules.map((r) =>
-          r.ip_tier === "AMAT_PROPRIETARY_CHAMBER"
-            ? { ...r, condition_expr: "[REDACTED — AMAT PROPRIETARY]", prior_adjustments: {} }
+          (r.ip_tier === "BIG_SEMI_PROPRIETARY_CHAMBER" || r.ip_tier === "AMAT_PROPRIETARY_CHAMBER")
+            ? { ...r, condition_expr: "[REDACTED — BIG-SEMI PROPRIETARY]", prior_adjustments: {} }
             : r
         );
       }
@@ -1200,12 +1200,22 @@
         }
         if (cleanPath === "/api/workflow/step2_load_data" || cleanPath === "/api/workflow/step2_upload") {
           const did = body && body.dataset_id;
-          guidedCursor = did === "amat_high_pressure_dust_6" ? "step2_dust6" : "step2";
+          guidedCursor =
+            did === "big_semi_high_pressure_dust_6" || did === "amat_high_pressure_dust_6"
+              ? "step2_dust6"
+              : did === "big_semi_seasoning_and_afm_8"
+                ? "step2_season8"
+                : "step2";
           return clone(gs[guidedCursor] || gs.step2 || gs.step0);
         }
         if (cleanPath === "/api/workflow/step3_select_kb") {
           const kbk = (body && body.kb_key) || "kb_v2_1_hybrid_full";
-          guidedCursor = kbk === "kb_v1_0_public" ? "step3_v1_0" : kbk === "kb_v2_0_amat_chamber" ? "step3_v2_0" : "step3";
+          guidedCursor =
+            kbk === "kb_v1_0_public"
+              ? "step3_v1_0"
+              : kbk === "kb_v2_0_big_semi_chamber" || kbk === "kb_v2_0_amat_chamber"
+                ? "step3_v2_0"
+                : "step3";
           return clone(gs[guidedCursor] || gs.step3 || gs.step0);
         }
         if (cleanPath === "/api/workflow/step4_simulate") {

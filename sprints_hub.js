@@ -314,6 +314,11 @@
         </div>
       </div>
 
+      <figure class="guided-fig-card" style="margin:0.25rem 0 0;">
+        <canvas id="sprint2SeasoningCanvas" width="760" height="215" role="img" aria-label="Chamber wall carbon seasoning bar chart versus 12 micron clean threshold alongside streamed FOUP RF reflected power waveforms highlighting quarantined RF arcing above 120 watts" style="inline-size:100%; block-size:215px; border-radius:0.45rem; border:1px solid var(--border); background:var(--surface-alt);"></canvas>
+        <figcaption><strong>Sprint 2 Telemetry Plot:</strong> Left: Chamber cumulative carbon seasoning vs. <code>12.0 µm</code> NF₃/O₂ clean limit. Right: Streamed FDC <code>rf_refl_w</code> traces showing normal runs (&lt; 10 W) vs. quarantined RF arcing (&gt; 120 W).</figcaption>
+      </figure>
+
       ${
         results.length
           ? `<div style="font-size:0.78rem;">
@@ -372,10 +377,14 @@
                 .join("")}
             </ul>
             <p style="margin:0.45rem 0 0; color:var(--muted);">
-              Human-in-the-loop review required: <b>${c.human_review_required ? "Yes (< 78% confidence)" : "No — High-confidence auto-cleared ✓"}</b>.
+              Human-in-the-loop review required: <b>${c.human_review_required ? "Yes (< 78% confidence)" : "No — High-confidence auto-cleared ✓"}</b> · Provenance: <code class="mono">${esc(c.provenance || "synthetic")}</code>.
             </p>
           </div>
         </div>
+        <figure class="guided-fig-card" style="margin:0.25rem 0 0;">
+          <canvas id="sprint3ParityCanvas" width="760" height="215" role="img" aria-label="Parity scatter plots comparing CV-extracted 110 nm penetration depth and planar overburden against ground-truth reference values within the plus or minus 8 nm MAE band" style="inline-size:100%; block-size:215px; border-radius:0.45rem; border:1px solid var(--border); background:var(--surface-alt);"></canvas>
+          <figcaption><strong>Sprint 3 Golden SEM Benchmark Parity:</strong> CV-extracted <code>PH₁₁₀</code> (left) and <code>OB</code> (right) vs. ground-truth reference across benchmark coupons with shaded <code>±8 nm</code> MAE acceptance band.</figcaption>
+        </figure>
       `
           : `<p style="margin:0; font-size:0.8rem; color:var(--muted);">Click <b>Run CD-SEM + XRR + AFM &amp; 16-Coupon Benchmark</b> to calibrate micron-bar pixel pitch, segment non-rectangular sidewall taper, invert Cu Kα XRR critical angle for film density, compute 2D AFM PSD roughness, and verify <code>&le; 8 nm</code> MAE.</p>`
       }
@@ -442,7 +451,7 @@
       <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
         <div>
           <div class="guided-eyebrow">Sprint 5 · Semantic KB Versioning, Rule Diffs, Rollback &amp; &gt;2σ Residual Rule Miner</div>
-          <h4 style="margin:0.15rem 0 0; font-size:0.95rem;">Active KB: <span class="mono">${esc(gov.active_version || "v2.1.0")}</span> · Public Literature (102 Papers) vs. Proprietary AMAT IP</h4>
+          <h4 style="margin:0.15rem 0 0; font-size:0.95rem;">Active KB: <span class="mono">${esc(gov.active_version || "v2.1.0")}</span> · Public Literature (102 Papers) vs. Proprietary Big-Semi IP</h4>
         </div>
         <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
           <button type="button" class="btn btn-primary" id="btnS5Promote">▶ Promote &gt;2σ Residual Candidate Rule</button>
@@ -453,7 +462,7 @@
 
       <div class="guided-metric-strip">
         <div class="guided-metric-box"><div class="m-lbl">Public Science Rules</div><div class="m-val mono">${esc(diff.version_b_ip_breakdown?.PUBLIC_LITERATURE ?? 3)} (102-paper corpus)</div></div>
-        <div class="guided-metric-box"><div class="m-lbl">AMAT Proprietary IP</div><div class="m-val mono">${esc(diff.version_b_ip_breakdown?.AMAT_PROPRIETARY_CHAMBER ?? 2)} Producer BKMs</div></div>
+        <div class="guided-metric-box"><div class="m-lbl">Big-Semi Proprietary IP</div><div class="m-val mono">${esc(diff.version_b_ip_breakdown?.BIG_SEMI_PROPRIETARY_CHAMBER ?? diff.version_b_ip_breakdown?.AMAT_PROPRIETARY_CHAMBER ?? 2)} Producer BKMs</div></div>
         <div class="guided-metric-box"><div class="m-lbl">Customer Lot Rules</div><div class="m-val mono">${esc(diff.version_b_ip_breakdown?.CUSTOMER_LOT_EMPIRICAL ?? 0)} Empirical</div></div>
         <div class="guided-metric-box"><div class="m-lbl">&gt;2σ Residual Candidates</div><div class="m-val mono">${esc((disc.candidate_rules || []).length)} AST-verified</div></div>
       </div>
@@ -584,7 +593,309 @@
       `
           : `<p style="margin:0; font-size:0.8rem; color:var(--muted);">Use <strong>Check Measured Qualification</strong> to evaluate genuine traceable measured repeatability wafers (&ge; 5 required), or run an explicitly labeled <strong>Synthetic Cpk Preview</strong> for demo illustration only.</p>`
       }
+      ${
+        sign || xfer
+          ? `
+        <figure class="guided-fig-card" style="margin:0.25rem 0 0;">
+          <canvas id="sprint6CpkCanvas" width="760" height="220" role="img" aria-label="Repeatability cassette control chart versus specification limits alongside Chamber A to Chamber B 3-wafer transfer RMSE comparison bars" style="inline-size:100%; block-size:220px; border-radius:0.45rem; border:1px solid var(--border); background:var(--surface-alt);"></canvas>
+          <figcaption><strong>Sprint 6 Repeatability &amp; Fleet Transfer Plot:</strong> Left: Per-wafer repeatability control chart against spec limits (clearly watermarked when running synthetic preview). Right: Unadapted vs. 3-wafer empirical-Bayes Chamber-B RMSE reduction.</figcaption>
+        </figure>
+      `
+          : ""
+      }
     `;
+  }
+
+  function setupSprintCanvas(cv, cssH) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = cv.getBoundingClientRect();
+    const W = Math.max(520, Math.round(rect.width || 760));
+    const H = Math.max(180, Math.round(cssH || rect.height || 220));
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    return { ctx, W, H };
+  }
+
+  function drawSprint2Canvas() {
+    const cv = document.getElementById("sprint2SeasoningCanvas");
+    if (!cv) return;
+    const { ctx, W, H } = setupSprintCanvas(cv, 215);
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const textCol = isDark ? "#e2e8f0" : "#0f172a";
+    const axisCol = isDark ? "#94a3b8" : "#475569";
+    const gridCol = isDark ? "rgba(148,163,184,0.18)" : "rgba(71,85,105,0.15)";
+
+    const status = (state.overview && state.overview.sprint2) || {};
+    const chambers = (state.s2Result && state.s2Result.chambers) || status.chambers || [];
+    const waveforms = (state.s2Result && state.s2Result.fdc_waveforms) || [];
+
+    // Left panel: Chamber seasoning bar chart vs 12.0 um clean threshold
+    const leftW = Math.round((W - 96) * 0.42);
+    const p1 = { x: 44, y: 26, w: leftW, h: H - 56 };
+    ctx.strokeStyle = gridCol;
+    ctx.strokeRect(p1.x, p1.y, p1.w, p1.h);
+    ctx.fillStyle = textCol;
+    ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("Chamber Wall Carbon (µm) vs Clean Limit", p1.x, 15);
+
+    const maxC = Math.max(15, ...chambers.map((c) => Number(c.cum_carbon_um || 0) + 1.5));
+    const syC = (v) => p1.y + p1.h - (Math.min(maxC, v) / maxC) * p1.h;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = isDark ? "#f87171" : "#dc2626";
+    ctx.beginPath(); ctx.moveTo(p1.x, syC(12.0)); ctx.lineTo(p1.x + p1.w, syC(12.0)); ctx.stroke();
+    ctx.fillStyle = isDark ? "#fca5a5" : "#b91c1c";
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("Clean Threshold 12.0 µm", p1.x + 6, syC(12.0) - 4);
+    ctx.restore();
+
+    const barW = Math.min(72, Math.floor((p1.w - 40) / Math.max(1, chambers.length)) - 16);
+    chambers.forEach((c, idx) => {
+      const val = Number(c.cum_carbon_um || 0);
+      const bx = p1.x + 28 + idx * (barW + 46);
+      const by = syC(val);
+      const bh = p1.y + p1.h - by;
+      ctx.fillStyle = val >= 12.0 ? (isDark ? "#f59e0b" : "#d97706") : (isDark ? "#38bdf8" : "#0284c7");
+      ctx.fillRect(bx, by, barW, Math.max(2, bh));
+      ctx.fillStyle = textCol;
+      ctx.font = "700 10.5px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`${val.toFixed(2)} µm`, bx, by - 5);
+      ctx.fillStyle = axisCol;
+      ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+      const lbl = String(c.chamber_id || "").replace("CHAMBER-PRODUCER-", "CH-");
+      ctx.fillText(lbl, bx + 4, p1.y + p1.h + 15);
+    });
+
+    // Right panel: FDC RF Reflected Power waveforms
+    const p2x = p1.x + p1.w + 36;
+    const p2 = { x: p2x, y: 26, w: W - p2x - 18, h: H - 56 };
+    ctx.strokeStyle = gridCol;
+    ctx.strokeRect(p2.x, p2.y, p2.w, p2.h);
+    ctx.fillStyle = textCol;
+    ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("FDC RF Reflected Power (W) · Arc Interlock = 120 W", p2.x, 15);
+
+    const maxW = 280;
+    const syW = (v) => p2.y + p2.h - (Math.min(maxW, Math.max(0, v)) / maxW) * p2.h;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = isDark ? "#f87171" : "#dc2626";
+    ctx.beginPath(); ctx.moveTo(p2.x, syW(120)); ctx.lineTo(p2.x + p2.w, syW(120)); ctx.stroke();
+    ctx.fillStyle = isDark ? "#fca5a5" : "#b91c1c";
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("120 W Quarantine Limit", p2.x + 6, syW(120) - 4);
+    ctx.restore();
+
+    if (!waveforms.length) {
+      ctx.fillStyle = axisCol;
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("Click 'Stream 4-Wafer Producer FOUP Cassette' to plot FDC traces.", p2.x + 14, p2.y + p2.h / 2);
+      return;
+    }
+    waveforms.forEach((wf) => {
+      const pts = wf.points || [];
+      if (!pts.length) return;
+      const isQuar = wf.status === "quarantined";
+      ctx.strokeStyle = isQuar ? (isDark ? "#f87171" : "#dc2626") : (isDark ? "#34d399" : "#059669");
+      ctx.lineWidth = isQuar ? 2.4 : 1.5;
+      ctx.beginPath();
+      pts.forEach((pt, i) => {
+        const px = p2.x + (i / Math.max(1, pts.length - 1)) * p2.w;
+        const py = syW(Number(pt.rf_refl_w || 0));
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    });
+    ctx.fillStyle = axisCol;
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("Green = Clean Ingested Slots · Red Spike = Quarantined Arc Slot", p2.x + 4, p2.y + p2.h + 15);
+  }
+
+  function drawSprint3Canvas() {
+    const cv = document.getElementById("sprint3ParityCanvas");
+    const bm = state.s3Result && state.s3Result.benchmark;
+    if (!cv || !bm || !Array.isArray(bm.coupons) || !bm.coupons.length) return;
+    const { ctx, W, H } = setupSprintCanvas(cv, 215);
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const textCol = isDark ? "#e2e8f0" : "#0f172a";
+    const axisCol = isDark ? "#94a3b8" : "#475569";
+    const gridCol = isDark ? "rgba(148,163,184,0.18)" : "rgba(71,85,105,0.15)";
+
+    const drawParity = (box, title, minV, maxV, pairs, dotCol) => {
+      const sx = (v) => box.x + ((v - minV) / Math.max(1, maxV - minV)) * box.w;
+      const sy = (v) => box.y + box.h - ((v - minV) / Math.max(1, maxV - minV)) * box.h;
+      ctx.strokeStyle = gridCol;
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = textCol;
+      ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(title, box.x, 15);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(box.x, box.y, box.w, box.h);
+      ctx.clip();
+      ctx.fillStyle = isDark ? "rgba(16,185,129,0.18)" : "rgba(5,150,105,0.12)";
+      ctx.beginPath();
+      ctx.moveTo(sx(minV), sy(minV + 8));
+      ctx.lineTo(sx(maxV), sy(maxV + 8));
+      ctx.lineTo(sx(maxV), sy(maxV - 8));
+      ctx.lineTo(sx(minV), sy(minV - 8));
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = isDark ? "#34d399" : "#059669";
+      ctx.beginPath(); ctx.moveTo(sx(minV), sy(minV)); ctx.lineTo(sx(maxV), sy(maxV)); ctx.stroke();
+      ctx.restore();
+
+      pairs.forEach(([tv, pv]) => {
+        ctx.fillStyle = dotCol;
+        ctx.beginPath();
+        ctx.arc(sx(tv), sy(pv), 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = axisCol;
+      ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`True (${minV}–${maxV} nm) vs CV Extracted · ±8 nm Band`, box.x + 2, box.y + box.h + 15);
+    };
+
+    const coupons = bm.coupons;
+    const halfW = Math.floor((W - 110) / 2);
+    drawParity(
+      { x: 42, y: 24, w: halfW, h: H - 52 },
+      `Golden SEM PH₁₁₀ Parity (MAE = ${bm.mae_ph_110_nm} nm)`,
+      600,
+      1020,
+      coupons.map((r) => [Number(r.true_ph_nm), Number(r.pred_ph_nm)]),
+      isDark ? "#38bdf8" : "#0284c7"
+    );
+    drawParity(
+      { x: 42 + halfW + 44, y: 24, w: halfW, h: H - 52 },
+      `Golden SEM OB Parity (MAE = ${bm.mae_ob_nm} nm)`,
+      35,
+      175,
+      coupons.map((r) => [Number(r.true_ob_nm), Number(r.pred_ob_nm)]),
+      isDark ? "#a78bfa" : "#7c3aed"
+    );
+  }
+
+  function drawSprint6Canvas() {
+    const cv = document.getElementById("sprint6CpkCanvas");
+    if (!cv) return;
+    const { ctx, W, H } = setupSprintCanvas(cv, 220);
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const textCol = isDark ? "#e2e8f0" : "#0f172a";
+    const axisCol = isDark ? "#94a3b8" : "#475569";
+    const gridCol = isDark ? "rgba(148,163,184,0.18)" : "rgba(71,85,105,0.15)";
+
+    const sign = state.s6Signoff;
+    const xfer = state.s6Transfer;
+
+    // Left panel: Repeatability cassette OB control chart
+    const leftW = Math.round((W - 92) * 0.56);
+    const p1 = { x: 46, y: 26, w: leftW, h: H - 56 };
+    ctx.strokeStyle = gridCol;
+    ctx.strokeRect(p1.x, p1.y, p1.w, p1.h);
+    ctx.fillStyle = textCol;
+    ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+    const rows = (sign && sign.repeatability_cassette) || [];
+    ctx.fillText(
+      sign && sign.is_synthetic_preview
+        ? "Repeatability Control Chart (SYNTHETIC PREVIEW ONLY)"
+        : "Measured Repeatability Control Chart (OB nm vs USL)",
+      p1.x,
+      15
+    );
+
+    if (sign && sign.is_synthetic_preview) {
+      ctx.fillStyle = isDark ? "rgba(245,158,11,0.16)" : "rgba(217,119,6,0.10)";
+      ctx.fillRect(p1.x + 1, p1.y + 1, p1.w - 2, 19);
+      ctx.fillStyle = isDark ? "#fbbf24" : "#b45309";
+      ctx.font = "700 10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText("⚠ SYNTHETIC MONTE-CARLO PREVIEW · NOT QUALIFICATION EVIDENCE", p1.x + 8, p1.y + 14);
+    }
+
+    if (rows.length) {
+      const obVals = rows.map((r) => Number(r.ob_nm)).filter(Number.isFinite);
+      const usl = Number((sign && sign.cpk_metrics && sign.cpk_metrics.ob_nm && sign.cpk_metrics.ob_nm.usl) || 85);
+      const yMin = Math.min(40, ...obVals) - 6;
+      const yMax = Math.max(usl + 10, ...obVals) + 8;
+      const sx = (i) => p1.x + 28 + (rows.length === 1 ? (p1.w - 56) / 2 : (i / (rows.length - 1)) * (p1.w - 56));
+      const sy = (v) => p1.y + p1.h - ((v - yMin) / Math.max(1, yMax - yMin)) * (p1.h - 28);
+
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = isDark ? "#f87171" : "#dc2626";
+      ctx.beginPath(); ctx.moveTo(p1.x, sy(usl)); ctx.lineTo(p1.x + p1.w, sy(usl)); ctx.stroke();
+      ctx.fillStyle = isDark ? "#fca5a5" : "#b91c1c";
+      ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`OB USL = ${usl} nm`, p1.x + p1.w - 110, sy(usl) - 4);
+      ctx.restore();
+
+      ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      obVals.forEach((v, i) => {
+        if (i === 0) ctx.moveTo(sx(i), sy(v));
+        else ctx.lineTo(sx(i), sy(v));
+      });
+      ctx.stroke();
+      obVals.forEach((v, i) => {
+        ctx.fillStyle = v <= usl ? (isDark ? "#34d399" : "#059669") : (isDark ? "#f87171" : "#dc2626");
+        ctx.beginPath(); ctx.arc(sx(i), sy(v), 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = textCol;
+        ctx.font = "9.5px ui-monospace, SFMono-Regular, monospace";
+        ctx.fillText(`${v.toFixed(1)}`, sx(i) - 12, sy(v) - 8);
+        ctx.fillStyle = axisCol;
+        ctx.fillText(`W${i + 1}`, sx(i) - 8, p1.y + p1.h + 14);
+      });
+    } else {
+      ctx.fillStyle = axisCol;
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("Run Measured Qualification or Synthetic Preview to plot control chart.", p1.x + 10, p1.y + p1.h / 2);
+    }
+
+    // Right panel: 3-Wafer Chamber A->B Transfer RMSE comparison bars
+    const p2x = p1.x + p1.w + 30;
+    const p2 = { x: p2x, y: 26, w: W - p2x - 16, h: H - 56 };
+    ctx.strokeStyle = gridCol;
+    ctx.strokeRect(p2.x, p2.y, p2.w, p2.h);
+    ctx.fillStyle = textCol;
+    ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText("3-Wafer Chamber A→B Transfer RMSE (nm)", p2.x, 15);
+
+    if (xfer && xfer.accuracy_improvement) {
+      const a = xfer.accuracy_improvement;
+      const items = [
+        { lbl: "OB Unadapted", val: Number(a.unadapted_rmse_ob_nm || 0), col: isDark ? "#f87171" : "#dc2626" },
+        { lbl: "OB Transferred", val: Number(a.transferred_rmse_ob_nm || 0), col: isDark ? "#34d399" : "#059669" },
+        { lbl: "PH Unadapted", val: Number(a.unadapted_rmse_ph_nm || 0), col: isDark ? "#fbbf24" : "#d97706" },
+        { lbl: "PH Transferred", val: Number(a.transferred_rmse_ph_nm || 0), col: isDark ? "#38bdf8" : "#0284c7" },
+      ];
+      const maxE = Math.max(20, ...items.map((it) => it.val)) * 1.15;
+      const rowH = Math.floor((p2.h - 16) / items.length);
+      items.forEach((it, idx) => {
+        const y = p2.y + 10 + idx * rowH;
+        ctx.fillStyle = axisCol;
+        ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+        ctx.fillText(it.lbl, p2.x + 8, y + 12);
+        const barMaxW = Math.max(40, p2.w - 178);
+        const bw = Math.max(4, (it.val / maxE) * barMaxW);
+        ctx.fillStyle = it.col;
+        ctx.fillRect(p2.x + 110, y + 2, bw, 14);
+        ctx.fillStyle = textCol;
+        ctx.fillText(`${it.val.toFixed(1)} nm`, p2.x + 116 + bw, y + 13);
+      });
+    } else {
+      ctx.fillStyle = axisCol;
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("Click '3-Wafer Chamber A→B Transfer' to plot RMSE cut.", p2.x + 10, p2.y + p2.h / 2);
+    }
   }
 
   function drawSprint4Canvas() {
@@ -938,10 +1249,10 @@
     });
 
     document.getElementById("btnS6DlXml")?.addEventListener("click", () => {
-      if (state.s6Runsheet) downloadText("amat_producer_doe_runsheet.xml", state.s6Runsheet.producer_xml, "application/xml");
+      if (state.s6Runsheet) downloadText("big_semi_producer_doe_runsheet.xml", state.s6Runsheet.producer_xml, "application/xml");
     });
     document.getElementById("btnS6DlCsv")?.addEventListener("click", () => {
-      if (state.s6Runsheet) downloadText("amat_producer_doe_runsheet.csv", state.s6Runsheet.producer_csv, "text/csv");
+      if (state.s6Runsheet) downloadText("big_semi_producer_doe_runsheet.csv", state.s6Runsheet.producer_csv, "text/csv");
     });
   }
 
@@ -951,8 +1262,14 @@
     panel.innerHTML = renderPanelContent();
     syncSprintCardHighlights();
     bindPanelActions();
-    if (state.activeSprint === 4) {
+    if (state.activeSprint === 2) {
+      requestAnimationFrame(drawSprint2Canvas);
+    } else if (state.activeSprint === 3) {
+      requestAnimationFrame(drawSprint3Canvas);
+    } else if (state.activeSprint === 4) {
       requestAnimationFrame(drawSprint4Canvas);
+    } else if (state.activeSprint === 6) {
+      requestAnimationFrame(drawSprint6Canvas);
     }
   }
 

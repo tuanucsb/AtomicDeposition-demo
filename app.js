@@ -3152,7 +3152,7 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                name: (qs("#specName") && qs("#specName").value) || "AMAT Qualification Target",
+                name: (qs("#specName") && qs("#specName").value) || "Big-Semi Qualification Target",
                 goal,
                 ph_min_nm: phMin,
                 ob_max_nm: obMax,
@@ -3226,6 +3226,7 @@
     if (kgLastPred) drawMechanismStudio(kgLastPred);
     drawTab1CausalGraph();
     drawHistoryChart();
+    drawWaferFrontierAndQualityChart();
     if (lastSandboxPred) drawProfilePreview(lastSandboxPred);
   }
 
@@ -3813,6 +3814,191 @@
     });
   }
 
+  function drawWaferFrontierAndQualityChart() {
+    const cv = qs("#parityCanvas");
+    if (!cv || !brainData) return;
+    const setup = setupHiDpiCanvas(cv);
+    if (!setup) return;
+    const { ctx, w, h } = setup;
+    const pal = themePalette();
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const exps = brainData.experiments || [];
+    const spec = brainData.client_spec || {};
+    const goal = (qs("#optGoal") && qs("#optGoal").value) || "plug_fill";
+
+    const obMax = Number(spec.ob_max_nm || 105);
+    const phMin = Number(spec.ph_min_nm || 975);
+    const fhTarget = Number(spec.fill_height_target_nm || 520);
+    const fhTol = Number(spec.fill_height_tol_nm || 45);
+
+    const midGap = 34;
+    const leftBox = { x: 50, y: 26, w: Math.max(160, Math.floor((w - 86 - midGap) * 0.56)), h: h - 54 };
+    const rightBox = { x: leftBox.x + leftBox.w + midGap + 24, y: 26, w: Math.max(140, w - (leftBox.x + leftBox.w + midGap + 42)), h: h - 54 };
+
+    // Left: OB vs PH_110 / Fill Height with ClientSpec target box + BO suggestions
+    const pts = exps
+      .map((e) => {
+        const m = e.measured || {};
+        const x = Number(m.ob_nm);
+        const y = Number(goal === "partial_fill" ? (m.fill_height_110_nm ?? m.ph_depth_110_nm) : m.ph_depth_110_nm);
+        return Number.isFinite(x) && Number.isFinite(y)
+          ? { id: e.exp_id, x, y, measured: e.provenance === "measured", pass: Boolean(e.spec_check && e.spec_check.meets_spec) }
+          : null;
+      })
+      .filter(Boolean);
+
+    const boPts = (lastOptimizationSuggestions || [])
+      .map((s, idx) => {
+        const p = (s.prediction && s.prediction.pang_posterior) || {};
+        const x = Number(p.ob_nm);
+        const y = Number(goal === "partial_fill" ? p.fill_height_110_nm : p.ph_depth_110_nm);
+        return Number.isFinite(x) && Number.isFinite(y) ? { rank: idx + 1, x, y } : null;
+      })
+      .filter(Boolean);
+
+    const xs = [obMax + 25, ...pts.map((p) => p.x), ...boPts.map((p) => p.x)];
+    const ys = [goal === "partial_fill" ? fhTarget : phMin, ...pts.map((p) => p.y), ...boPts.map((p) => p.y)];
+    const xMin = Math.min(25, ...xs) - 8;
+    const xMax = Math.max(140, ...xs) + 12;
+    const yMin = goal === "partial_fill" ? Math.min(250, ...ys) - 25 : Math.min(560, ...ys) - 25;
+    const yMax = goal === "partial_fill" ? Math.max(680, ...ys) + 25 : 1020;
+
+    const sx = (v) => leftBox.x + ((v - xMin) / Math.max(1, xMax - xMin)) * leftBox.w;
+    const sy = (v) => leftBox.y + leftBox.h - ((v - yMin) / Math.max(1, yMax - yMin)) * leftBox.h;
+
+    // Target box
+    const tx2 = Math.max(leftBox.x, Math.min(leftBox.x + leftBox.w, sx(obMax)));
+    const tyTop = Math.max(leftBox.y, sy(goal === "partial_fill" ? fhTarget + fhTol : 1012));
+    const tyBot = Math.min(leftBox.y + leftBox.h, sy(goal === "partial_fill" ? fhTarget - fhTol : phMin));
+    ctx.fillStyle = isDark ? "rgba(16,185,129,0.18)" : "rgba(5,150,105,0.12)";
+    ctx.fillRect(leftBox.x, tyTop, Math.max(0, tx2 - leftBox.x), Math.max(0, tyBot - tyTop));
+    ctx.strokeStyle = pal.border;
+    ctx.strokeRect(leftBox.x, leftBox.y, leftBox.w, leftBox.h);
+
+    ctx.fillStyle = pal.text;
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(
+      goal === "partial_fill" ? "Wafer Frontier: OB vs. Partial Fill Height (nm)" : "Wafer Frontier: Overburden vs. PH₁₁₀ (nm)",
+      leftBox.x,
+      15
+    );
+
+    pts.forEach((p) => {
+      const px = sx(p.x), py = sy(p.y);
+      const col = p.pass ? pal.ok : pal.brand;
+      ctx.beginPath();
+      ctx.arc(px, py, 4.6, 0, Math.PI * 2);
+      if (p.measured) {
+        ctx.fillStyle = col;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.9;
+        ctx.stroke();
+      }
+    });
+
+    boPts.forEach((b) => {
+      const px = sx(b.x), py = sy(b.y);
+      ctx.fillStyle = pal.warn;
+      ctx.beginPath();
+      ctx.moveTo(px, py - 6.5); ctx.lineTo(px + 6.5, py); ctx.lineTo(px, py + 6.5); ctx.lineTo(px - 6.5, py);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    ctx.fillStyle = pal.muted;
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText(`OB (nm) · Spec <= ${obMax} · Diamonds = BO Batch`, leftBox.x, h - 8);
+    ctx.fillText(yMax.toFixed(0), 6, leftBox.y + 8);
+    ctx.fillText(yMin.toFixed(0), 6, leftBox.y + leftBox.h);
+
+    // Right: Film Density vs AFM Rq (or fallback OB if AFM sparse)
+    ctx.strokeStyle = pal.border;
+    ctx.strokeRect(rightBox.x, rightBox.y, rightBox.w, rightBox.h);
+    const afmPts = exps
+      .map((e) => {
+        const m = e.measured || {};
+        const d = Number(m.film_density_g_cm3);
+        const a = Number(m.afm_rms_nm);
+        return Number.isFinite(d) && Number.isFinite(a)
+          ? { id: e.exp_id, x: d, y: a, measured: e.provenance === "measured", pass: Boolean(e.spec_check && e.spec_check.meets_spec) }
+          : null;
+      })
+      .filter(Boolean);
+
+    ctx.fillStyle = pal.text;
+    ctx.font = "700 11px system-ui, sans-serif";
+    if (afmPts.length >= 2) {
+      ctx.fillText("Film Quality: XRR Density ρ vs. Inline AFM R_q", rightBox.x, 15);
+      const dMin = Math.min(1.65, ...afmPts.map((p) => p.x)) - 0.04;
+      const dMax = Math.max(1.94, ...afmPts.map((p) => p.x)) + 0.04;
+      const aMin = 0.6;
+      const aMax = Math.max(2.6, ...afmPts.map((p) => p.y)) + 0.3;
+      const rx = (v) => rightBox.x + ((v - dMin) / Math.max(0.05, dMax - dMin)) * rightBox.w;
+      const ry = (v) => rightBox.y + rightBox.h - ((v - aMin) / Math.max(0.2, aMax - aMin)) * rightBox.h;
+
+      const dLim = Number(spec.density_min_g_cm3 || 1.80);
+      const aLim = Number(spec.afm_rq_max_nm || 1.65);
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = pal.ok;
+      if (dLim >= dMin && dLim <= dMax) {
+        ctx.beginPath(); ctx.moveTo(rx(dLim), rightBox.y); ctx.lineTo(rx(dLim), rightBox.y + rightBox.h); ctx.stroke();
+      }
+      if (aLim >= aMin && aLim <= aMax) {
+        ctx.beginPath(); ctx.moveTo(rightBox.x, ry(aLim)); ctx.lineTo(rightBox.x + rightBox.w, ry(aLim)); ctx.stroke();
+      }
+      ctx.restore();
+
+      afmPts.forEach((p) => {
+        const px = rx(p.x), py = ry(p.y);
+        const col = p.pass ? pal.ok : pal.brand;
+        ctx.beginPath();
+        ctx.arc(px, py, 4.6, 0, Math.PI * 2);
+        if (p.measured) { ctx.fillStyle = col; ctx.fill(); }
+        else { ctx.strokeStyle = col; ctx.lineWidth = 1.9; ctx.stroke(); }
+      });
+      ctx.fillStyle = pal.muted;
+      ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`Density ρ (g/cm³) · Spec >= ${dLim.toFixed(2)}, AFM <= ${aLim.toFixed(2)} nm`, rightBox.x, h - 8);
+    } else {
+      ctx.fillText("Dual-CD Fill Balance: PH₁₁₀ vs. PH₂₂₅ (nm)", rightBox.x, 15);
+      const cdPts = exps
+        .map((e) => {
+          const m = e.measured || {};
+          const x = Number(m.ph_depth_110_nm);
+          const y = Number(m.ph_depth_225_nm);
+          return Number.isFinite(x) && Number.isFinite(y) ? { x, y, measured: e.provenance === "measured", pass: Boolean(e.spec_check && e.spec_check.meets_spec) } : null;
+        })
+        .filter(Boolean);
+      const rx = (v) => rightBox.x + ((Math.max(550, Math.min(1010, v)) - 550) / 460) * rightBox.w;
+      const ry = (v) => rightBox.y + rightBox.h - ((Math.max(550, Math.min(1010, v)) - 550) / 460) * rightBox.h;
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = pal.muted;
+      ctx.beginPath(); ctx.moveTo(rx(550), ry(550)); ctx.lineTo(rx(1000), ry(1000)); ctx.stroke();
+      ctx.restore();
+      cdPts.forEach((p) => {
+        const col = p.pass ? pal.ok : pal.brand;
+        ctx.beginPath(); ctx.arc(rx(p.x), ry(p.y), 4.6, 0, Math.PI * 2);
+        if (p.measured) { ctx.fillStyle = col; ctx.fill(); }
+        else { ctx.strokeStyle = col; ctx.lineWidth = 1.9; ctx.stroke(); }
+      });
+      ctx.fillStyle = pal.muted;
+      ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText("110 nm Tight Via PH vs. 225 nm Wide Feature PH (nm)", rightBox.x, h - 8);
+    }
+
+    const badge = qs("#paritySummaryBadge");
+    if (badge) {
+      const nMeas = exps.filter((e) => e.provenance === "measured").length;
+      const nSyn = exps.length - nMeas;
+      badge.textContent = `${nMeas} Measured (solid) · ${nSyn} Synthetic (hollow) · ${boPts.length} BO`;
+    }
+  }
+
   // ------------------------------------------------------------------
   // Active Optimizer Recommendations, Run-Sheet Export & Closed-Loop Batch
   // ------------------------------------------------------------------
@@ -3825,6 +4011,7 @@
 
   function renderOptimizationSuggestions(suggestions, goal) {
     lastOptimizationSuggestions = suggestions || [];
+    drawWaferFrontierAndQualityChart();
     const box = qs("#recContainer");
     const runSheet = qs("#doeRunSheetBody");
     box.innerHTML = "";

@@ -399,7 +399,7 @@
           <div class="guided-eyebrow">Step 0 · Product Overview &amp; Decision Architecture</div>
           <h2 class="guided-title">Self-Service PECVD Gap-Fill Qualification — Built Around the 4-Layer Decision Pyramid</h2>
           <p class="guided-lead">
-            Designed for an Applied Materials ${tip("ccp", "PECVD")} Process Technologist to take a customer requirement (such as TSMC N2 ${tip("har", "HAR")} carbon gap-fill) from failing baseline coupons to a 100% spec-compliant recipe without waiting weeks across separate Simulation, ML, and Metrology queues.
+            Designed for a Big-Semi ${tip("ccp", "PECVD")} Process Technologist to take a customer requirement (such as TSMC N2 ${tip("har", "HAR")} carbon gap-fill) from failing baseline coupons to a 100% spec-compliant recipe without waiting weeks across separate Simulation, ML, and Metrology queues.
           </p>
         </div>
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
@@ -440,7 +440,7 @@
           <ol style="margin:0.2rem 0 0; padding-inline-start:1.25rem; font-size:0.82rem; display:flex; flex-direction:column; gap:0.42rem;">
             <li><b>Client Requirement Spec:</b> Lock TSMC's dual-CD ${tip("ph_depth", "PH >= 985 nm")}, ${tip("overburden", "OB <= 85 nm")}, crack-free, ${tip("film_density", "ρ >= 1.80 g/cm³")} target.</li>
             <li><b>Load Experimental Data:</b> Load the prebuilt 8-wafer Producer baseline lot (or upload cleanroom <code>.csv</code>/<code>.json</code>) and auto-grade (<code>0/8</code> pass).</li>
-            <li><b>Select Knowledge Base Version:</b> Choose KB version (<code>v1.0</code>–<code>v2.1</code>), distinguish Public Literature vs. Proprietary AMAT IP, and inspect Chemistry &amp; Physics equations.</li>
+            <li><b>Select Knowledge Base Version:</b> Choose KB version (<code>v1.0</code>–<code>v2.1</code>), distinguish Public Literature vs. Proprietary Big-Semi IP, and inspect Chemistry &amp; Physics equations.</li>
             <li><b>AI Triage, Simulations &amp; Mechanism Figures (4A &amp; 4B):</b> Run/load coupled CCP + ${tip("knudsen", "Knudsen")} + 3D ${tip("reaxff", "a-C:H:N")} simulations and view visual process figures.</li>
             <li><b>Bayesian Optimization:</b> Run ${tip("constrained_ei", "Constrained EI")} to suggest the next 3-wafer cleanroom batch.</li>
             <li><b>Ingest New Results:</b> Load Round-1 metrology (<code>OB=65.8 nm</code> vs. <code>ρ=1.77</code> trade-off) and auto-grade every TSMC criterion.</li>
@@ -654,7 +654,7 @@
           <div class="guided-eyebrow">Step 2 of 8 · Load Experimental Screening Data</div>
           <h2 class="guided-title">Load Prebuilt Cleanroom Screening Lot (or Upload Your Own Dataset)</h2>
           <p class="guided-lead">
-            Load the preloaded Applied Materials Producer® screening dataset with 1 click, or upload a cleanroom <code>.csv</code> / <code>.json</code> file. Layer 1 automatically grades every wafer line-by-line against Step 1's TSMC specification.
+            Load the preloaded Big-Semi Producer® screening dataset with 1 click, or upload a cleanroom <code>.csv</code> / <code>.json</code> file. Layer 1 automatically grades every wafer line-by-line against Step 1's TSMC specification.
           </p>
         </div>
         <span class="badge ${bs.pass_count > 0 ? "badge-ok" : "badge-warn"} mono">
@@ -664,14 +664,15 @@
 
       ${renderStepExplainer("2")}
 
-      <div class="guided-three-col">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem;">
         ${(s2.available_lots || [])
           .map((lot, idx) => {
             const active = s2.loaded_dataset_id === lot.dataset_id;
+            const badgeText = idx === 0 ? "Recommended Preloaded Lot" : idx === 1 ? "Dust Stress Lot" : "Seasoning & AFM Lot";
             return `
             <div class="guided-subcard ${active ? "is-selected" : ""}">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:0.35rem;">
-                <span class="badge ${idx === 0 ? "badge-ok" : ""} mono">${idx === 0 ? "Recommended Preloaded Lot" : "Stress-Test Lot"}</span>
+                <span class="badge ${idx === 0 ? "badge-ok" : ""} mono">${badgeText}</span>
                 <span class="mono" style="font-size:0.76rem;">${lot.wafer_count} Wafers</span>
               </div>
               <h3 style="margin:0; font-size:0.92rem;">${esc(lot.title)}</h3>
@@ -698,6 +699,23 @@
           </label>
         </div>
       </div>
+
+      ${
+        bs.count
+          ? `
+        <div class="guided-two-col">
+          <figure class="guided-fig-card" style="margin:0;">
+            <canvas id="guidedFigStep2Scatter" width="660" height="320" role="img" aria-label="Scatter plot of baseline wafer overburden versus 110 nm fill depth showing the shaded target acceptance window and failure modes"></canvas>
+            <figcaption><strong>Figure 2A · Baseline Trade-Off Map (OB vs. Fill Depth):</strong> Every loaded wafer plotted against the shaded green TSMC acceptance corner (upper-left: high fill, low OB). Shapes distinguish clean fill, cracks, and dust nodules.</figcaption>
+          </figure>
+          <figure class="guided-fig-card" style="margin:0;">
+            <canvas id="guidedFigStep2Diagnostics" width="660" height="320" role="img" aria-label="Dual diagnostic scatter plot showing inline OES CN to Ar actinometry versus penetration depth and RF third-harmonic distortion versus AFM surface roughness"></canvas>
+            <figcaption><strong>Figure 2B · Inline Chamber Diagnostics vs. Metrology:</strong> Left: OES <code>CN/Ar</code> tracks sidewall passivation and deeper fill. Right: RF <code>3ω/1ω &gt; 8.5%</code> signals nanoparticle dust and elevated <code>AFM R_q</code>.</figcaption>
+          </figure>
+        </div>
+      `
+          : ""
+      }
 
       <div class="guided-subcard" style="background:var(--surface);">
         <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
@@ -784,7 +802,7 @@
           <div class="guided-eyebrow">Step 3 of 8 · Versioned Knowledge Base, IP Provenance &amp; Physics/Chemistry</div>
           <h2 class="guided-title">Select Knowledge Base Version &amp; Inspect How Chemistry + Physics Enter the Model</h2>
           <p class="guided-lead">
-            Choose which Knowledge Base snapshot governs calibration and optimization. Notice how the platform strictly separates <b>Public Peer-Reviewed Science</b>, <b>Proprietary AMAT Chamber IP</b>, and <b>Customer Lot Data</b>.
+            Choose which Knowledge Base snapshot governs calibration and optimization. Notice how the platform strictly separates <b>Public Peer-Reviewed Science</b>, <b>Proprietary Big-Semi Chamber IP</b>, and <b>Customer Lot Data</b>.
           </p>
         </div>
         <span class="badge badge-ok mono">Active: ${esc(s3.kb_version_label)} (${(s3.active_rules || []).length} Active Causal Rules)</span>
@@ -1126,6 +1144,10 @@
         !cands.length
           ? `<div class="guided-subcard"><p style="margin:0; font-size:0.85rem; color:var(--muted);">Click <b>Run Bayesian Optimization for Round ${nextRound}</b> above to generate the 3-wafer cleanroom DoE run-sheet with logged UUID prediction IDs.</p></div>`
           : `
+        <figure class="guided-fig-card" style="margin:0;">
+          <canvas id="guidedFigStep5Pareto" width="960" height="310" role="img" aria-label="Bayesian Optimization frontier plot comparing historical wafers against newly proposed Round candidates with one-sigma error bars and predicted probability of meeting spec"></canvas>
+          <figcaption><strong>Figure 5 · Bayesian Optimization Frontier &amp; Acquisition Ranking:</strong> Left: Proposed Round ${nextRound} candidates (numbered emerald stars with ±1σ posterior uncertainty bars) leap directly from historical wafers into the shaded TSMC spec window. Right: Predicted <code>P(Meets Spec)</code> per candidate.</figcaption>
+        </figure>
         <div class="guided-three-col">
           ${cands
             .map((c) => {
@@ -1340,7 +1362,7 @@
           <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem;">
             <div>
               <div class="guided-eyebrow" style="color:var(--ok);">TSMC N2 Qualification Certificate · ${esc(wfState.step3_kb.kb_version_label)}</div>
-              <h3 style="margin:0.15rem 0 0; font-size:1.05rem;">Qualified Chamber Recipe: ${esc(win.exp_id)} (Applied Materials Producer® 27.12 MHz Cyclic DED)</h3>
+              <h3 style="margin:0.15rem 0 0; font-size:1.05rem;">Qualified Chamber Recipe: ${esc(win.exp_id)} (Big-Semi Producer® 27.12 MHz Cyclic DED)</h3>
             </div>
             <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
               <button type="button" id="btnExportQualJson" class="btn btn-primary">Export Qualification Sign-Off (.json)</button>
@@ -1794,9 +1816,406 @@
     });
   }
 
+  function drawStep2ScreeningFigures() {
+    if (!wfState) return;
+    const wafers = (wfState.step2_data && wfState.step2_data.baseline_summary && wfState.step2_data.baseline_summary.wafers) || [];
+    const spec = (wfState.step1_spec && wfState.step1_spec.active_spec) || {};
+    const goal = (wfState.step1_spec && wfState.step1_spec.goal) || "plug_fill";
+    const afmLim = Number((wfState.step1_spec && wfState.step1_spec.afm_rq_max_nm) || spec.afm_rq_max_nm || 1.65);
+
+    // Figure 2A: OB vs PH_110 / Fill Height with shaded green TSMC acceptance window
+    const c1 = qs("#guidedFigStep2Scatter");
+    if (c1 && wafers.length) {
+      const { ctx, w, h, dark } = setupHiDpiCanvas(c1, 660, 320);
+      const bg = dark ? "#0f172a" : "#ffffff";
+      const textCol = dark ? "#e2e8f0" : "#0f172a";
+      const mutedCol = dark ? "#94a3b8" : "#475569";
+      const gridCol = dark ? "rgba(148,163,184,0.18)" : "rgba(71,85,105,0.14)";
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const pad = { l: 58, r: 22, t: 32, b: 44 };
+      const pw = w - pad.l - pad.r;
+      const ph = h - pad.t - pad.b;
+
+      const pts = wafers
+        .map((wf) => {
+          const m = wf.measured || {};
+          const yVal = goal === "partial_fill" ? Number(m.fill_height_110_nm) : Number(m.ph_depth_110_nm);
+          const xVal = Number(m.ob_nm);
+          return Number.isFinite(xVal) && Number.isFinite(yVal) ? { wf, x: xVal, y: yVal, m } : null;
+        })
+        .filter(Boolean);
+
+      const obMaxSpec = Number(spec.ob_max_nm || 85);
+      const yMinSpec = goal === "partial_fill" ? Number(spec.fill_height_target_nm || 520) - Number(spec.fill_height_tol_nm || 45) : Number(spec.ph_min_nm || 985);
+      const yMaxSpec = goal === "partial_fill" ? Number(spec.fill_height_target_nm || 520) + Number(spec.fill_height_tol_nm || 45) : 1010;
+
+      const xMin = Math.min(30, ...pts.map((p) => p.x)) - 8;
+      const xMax = Math.max(obMaxSpec + 40, ...pts.map((p) => p.x)) + 16;
+      const yMin = goal === "partial_fill" ? Math.min(240, yMinSpec - 80, ...pts.map((p) => p.y)) - 20 : Math.min(540, ...pts.map((p) => p.y)) - 25;
+      const yMax = goal === "partial_fill" ? Math.max(700, yMaxSpec + 80, ...pts.map((p) => p.y)) + 20 : 1045;
+
+      const sx = (v) => pad.l + ((v - xMin) / Math.max(1, xMax - xMin)) * pw;
+      const sy = (v) => pad.t + ph - ((v - yMin) / Math.max(1, yMax - yMin)) * ph;
+
+      // Grid
+      ctx.strokeStyle = gridCol;
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const gx = pad.l + (i / 4) * pw;
+        const gy = pad.t + (i / 4) * ph;
+        ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, pad.t + ph); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(pad.l + pw, gy); ctx.stroke();
+      }
+
+      // Shaded green TSMC target window
+      const rx1 = pad.l;
+      const rx2 = Math.max(pad.l, Math.min(pad.l + pw, sx(obMaxSpec)));
+      const ryTop = Math.max(pad.t, sy(yMaxSpec));
+      const ryBot = Math.min(pad.t + ph, sy(yMinSpec));
+      ctx.fillStyle = dark ? "rgba(16,185,129,0.20)" : "rgba(5,150,105,0.14)";
+      ctx.fillRect(rx1, ryTop, Math.max(0, rx2 - rx1), Math.max(0, ryBot - ryTop));
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = dark ? "#34d399" : "#059669";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rx1, ryTop, Math.max(0, rx2 - rx1), Math.max(0, ryBot - ryTop));
+      ctx.restore();
+      ctx.fillStyle = dark ? "#34d399" : "#047857";
+      ctx.font = "700 10px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText("TSMC SPEC WINDOW", rx1 + 6, Math.max(pad.t + 13, ryTop + 13));
+
+      // Plot border & labels
+      ctx.strokeStyle = dark ? "#334155" : "#cbd5e1";
+      ctx.strokeRect(pad.l, pad.t, pw, ph);
+      ctx.fillStyle = textCol;
+      ctx.font = "700 12px system-ui, sans-serif";
+      ctx.fillText(
+        goal === "partial_fill" ? "Baseline Screening: Overburden vs. Partial Fill Height" : "Baseline Screening: Overburden vs. 110 nm Penetration Depth",
+        pad.l,
+        19
+      );
+      ctx.fillStyle = mutedCol;
+      ctx.font = "11px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`Planar Overburden OB (nm) — Spec <= ${obMaxSpec} nm`, pad.l + pw / 2 - 135, h - 10);
+      for (let i = 0; i <= 4; i++) {
+        const xv = xMin + (i / 4) * (xMax - xMin);
+        const yv = yMin + (i / 4) * (yMax - yMin);
+        ctx.fillText(xv.toFixed(0), sx(xv) - 10, pad.t + ph + 15);
+        ctx.fillText(yv.toFixed(0), 10, sy(yv) + 4);
+      }
+
+      // Data points (distinct shapes + colors for accessibility)
+      pts.forEach((p, idx) => {
+        const px = sx(p.x);
+        const py = sy(p.y);
+        const pass = Boolean(p.wf.meets_spec);
+        const nodule = Boolean(p.m.nodule_defect);
+        const crack = Boolean(p.m.crack_detected);
+        ctx.save();
+        if (pass) {
+          ctx.fillStyle = dark ? "#34d399" : "#059669";
+          ctx.beginPath(); ctx.arc(px, py, 6.5, 0, Math.PI * 2); ctx.fill();
+        } else if (nodule) {
+          // Diamond for dust nodule
+          ctx.fillStyle = dark ? "#e879f9" : "#c026d3";
+          ctx.beginPath();
+          ctx.moveTo(px, py - 7); ctx.lineTo(px + 7, py); ctx.lineTo(px, py + 7); ctx.lineTo(px - 7, py);
+          ctx.closePath(); ctx.fill();
+        } else if (crack) {
+          // Triangle for Griffith crack
+          ctx.fillStyle = dark ? "#f87171" : "#dc2626";
+          ctx.beginPath();
+          ctx.moveTo(px, py - 7); ctx.lineTo(px + 6.5, py + 5.5); ctx.lineTo(px - 6.5, py + 5.5);
+          ctx.closePath(); ctx.fill();
+        } else {
+          ctx.fillStyle = (p.wf.recipe && p.wf.recipe.freq_mhz > 20) ? (dark ? "#38bdf8" : "#0284c7") : (dark ? "#fbbf24" : "#d97706");
+          ctx.beginPath(); ctx.arc(px, py, 5.5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.strokeStyle = bg;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.restore();
+
+        const shortId = String(p.wf.exp_id || `W${idx + 1}`).split("_")[0];
+        ctx.fillStyle = textCol;
+        ctx.font = "600 9.5px ui-monospace, SFMono-Regular, monospace";
+        const lx = px > pad.l + pw - 75 ? px - 46 : px + 8;
+        const ly = py < pad.t + 16 ? py + 13 : py - 5;
+        ctx.fillText(shortId, lx, ly);
+      });
+
+      // Compact legend
+      ctx.font = "10px system-ui, sans-serif";
+      const legY = pad.t + ph - 10;
+      ctx.fillStyle = dark ? "#38bdf8" : "#0284c7"; ctx.fillText("● 27 MHz", pad.l + pw - 245, legY);
+      ctx.fillStyle = dark ? "#fbbf24" : "#d97706"; ctx.fillText("● 13.56 MHz", pad.l + pw - 185, legY);
+      ctx.fillStyle = dark ? "#f87171" : "#dc2626"; ctx.fillText("▲ Crack", pad.l + pw - 108, legY);
+      ctx.fillStyle = dark ? "#e879f9" : "#c026d3"; ctx.fillText("◆ Dust", pad.l + pw - 52, legY);
+    }
+
+    // Figure 2B: Dual Inline Diagnostics (Left: OES CN/Ar vs PH_110; Right: RF 3w/1w vs AFM Rq)
+    const c2 = qs("#guidedFigStep2Diagnostics");
+    if (c2 && wafers.length) {
+      const { ctx, w, h, dark } = setupHiDpiCanvas(c2, 660, 320);
+      const bg = dark ? "#0f172a" : "#ffffff";
+      const textCol = dark ? "#e2e8f0" : "#0f172a";
+      const mutedCol = dark ? "#94a3b8" : "#475569";
+      const borderCol = dark ? "#334155" : "#cbd5e1";
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const drawSubScatter = (box, title, xLbl, yLbl, pts, xRange, yRange, vThresh, hThresh, colFn) => {
+        const sx = (v) => box.x + ((v - xRange[0]) / Math.max(1e-6, xRange[1] - xRange[0])) * box.w;
+        const sy = (v) => box.y + box.h - ((v - yRange[0]) / Math.max(1e-6, yRange[1] - yRange[0])) * box.h;
+        ctx.strokeStyle = borderCol;
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
+        ctx.fillStyle = textCol;
+        ctx.font = "700 11.5px system-ui, sans-serif";
+        ctx.fillText(title, box.x, box.y - 10);
+
+        ctx.save();
+        ctx.setLineDash([4, 3]);
+        if (vThresh != null && vThresh >= xRange[0] && vThresh <= xRange[1]) {
+          ctx.strokeStyle = dark ? "#f87171" : "#dc2626";
+          ctx.beginPath(); ctx.moveTo(sx(vThresh), box.y); ctx.lineTo(sx(vThresh), box.y + box.h); ctx.stroke();
+          ctx.fillStyle = dark ? "#fca5a5" : "#b91c1c";
+          ctx.font = "9.5px ui-monospace, SFMono-Regular, monospace";
+          ctx.fillText(`3ω=${vThresh}%`, sx(vThresh) - 36, box.y + 12);
+        }
+        if (hThresh != null && hThresh >= yRange[0] && hThresh <= yRange[1]) {
+          ctx.strokeStyle = dark ? "#34d399" : "#059669";
+          ctx.beginPath(); ctx.moveTo(box.x, sy(hThresh)); ctx.lineTo(box.x + box.w, sy(hThresh)); ctx.stroke();
+          ctx.fillStyle = dark ? "#6ee7b7" : "#047857";
+          ctx.font = "9.5px ui-monospace, SFMono-Regular, monospace";
+          ctx.fillText(`Spec ${hThresh}`, box.x + 5, sy(hThresh) - 4);
+        }
+        ctx.restore();
+
+        pts.forEach((p) => {
+          const px = Math.max(box.x + 4, Math.min(box.x + box.w - 4, sx(p.x)));
+          const py = Math.max(box.y + 4, Math.min(box.y + box.h - 4, sy(p.y)));
+          ctx.fillStyle = colFn(p);
+          ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = mutedCol;
+          ctx.font = "9px ui-monospace, SFMono-Regular, monospace";
+          ctx.fillText(p.label, Math.min(box.x + box.w - 34, px + 6), Math.max(box.y + 11, py - 4));
+        });
+
+        ctx.fillStyle = mutedCol;
+        ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+        ctx.fillText(xLbl, box.x + box.w / 2 - 48, box.y + box.h + 28);
+        ctx.fillText(xRange[0].toFixed(1), box.x, box.y + box.h + 13);
+        ctx.fillText(xRange[1].toFixed(1), box.x + box.w - 22, box.y + box.h + 13);
+        ctx.fillText(yRange[1].toFixed(0), box.x - 30, box.y + 8);
+        ctx.fillText(yRange[0].toFixed(0), box.x - 30, box.y + box.h);
+        ctx.fillText(yLbl, box.x - 34, box.y + box.h / 2);
+      };
+
+      const leftPts = wafers
+        .map((wf) => {
+          const m = wf.measured || {};
+          const x = Number(m.oes_cn_ar);
+          const y = goal === "partial_fill" ? Number(m.fill_height_110_nm) : Number(m.ph_depth_110_nm);
+          return Number.isFinite(x) && Number.isFinite(y)
+            ? { x, y, label: String(wf.exp_id || "").split("_")[0], vhf: wf.recipe && wf.recipe.freq_mhz > 20 }
+            : null;
+        })
+        .filter(Boolean);
+
+      const rightPts = wafers
+        .map((wf) => {
+          const m = wf.measured || {};
+          const x = Number(m.rf_3rd_harmonic_pct);
+          const y = Number(m.afm_rms_nm);
+          return Number.isFinite(x) && Number.isFinite(y)
+            ? { x, y, label: String(wf.exp_id || "").split("_")[0], nodule: Boolean(m.nodule_defect) }
+            : null;
+        })
+        .filter(Boolean);
+
+      drawSubScatter(
+        { x: 46, y: 34, w: 264, h: 236 },
+        "OES CN/Ar (388/750) vs. Fill Depth",
+        "OES CN/Ar Ratio",
+        "nm",
+        leftPts,
+        [0.18, 0.72],
+        goal === "partial_fill" ? [250, 720] : [540, 1020],
+        null,
+        goal === "partial_fill" ? Number(spec.fill_height_target_nm || 520) : Number(spec.ph_min_nm || 985),
+        (p) => (p.vhf ? (dark ? "#38bdf8" : "#0284c7") : (dark ? "#fbbf24" : "#d97706"))
+      );
+      drawSubScatter(
+        { x: 374, y: 34, w: 266, h: 236 },
+        "RF 3ω/1ω Harmonics vs. AFM Roughness",
+        "RF 3ω/1ω (%)",
+        "Rq",
+        rightPts,
+        [4.0, 13.0],
+        [0.8, 4.4],
+        8.5,
+        afmLim,
+        (p) => (p.nodule ? (dark ? "#e879f9" : "#c026d3") : p.y <= afmLim ? (dark ? "#34d399" : "#059669") : (dark ? "#fb923c" : "#ea580c"))
+      );
+    }
+  }
+
+  function drawStep5BoParetoFigure() {
+    const canvas = qs("#guidedFigStep5Pareto");
+    if (!canvas || !wfState) return;
+    const plan = wfState.step5_optimization && wfState.step5_optimization.latest_plan;
+    const cands = (plan && plan.candidates) || [];
+    if (!cands.length) return;
+
+    const { ctx, w, h, dark } = setupHiDpiCanvas(canvas, 960, 310);
+    const bg = dark ? "#0f172a" : "#ffffff";
+    const textCol = dark ? "#e2e8f0" : "#0f172a";
+    const mutedCol = dark ? "#94a3b8" : "#475569";
+    const borderCol = dark ? "#334155" : "#cbd5e1";
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    const spec = (wfState.step1_spec && wfState.step1_spec.active_spec) || {};
+    const goal = (wfState.step1_spec && wfState.step1_spec.goal) || "plug_fill";
+    const obMaxSpec = Number(spec.ob_max_nm || 85);
+    const yMinSpec = goal === "partial_fill" ? Number(spec.fill_height_target_nm || 520) - Number(spec.fill_height_tol_nm || 45) : Number(spec.ph_min_nm || 985);
+    const yMaxSpec = goal === "partial_fill" ? Number(spec.fill_height_target_nm || 520) + Number(spec.fill_height_tol_nm || 45) : 1010;
+
+    // Collect all historical wafers across rounds
+    const histWafers = [];
+    (wfState.step8_convergence && wfState.step8_convergence.rounds || []).forEach((rd) => {
+      ((rd.summary && rd.summary.wafers) || []).forEach((wf) => histWafers.push(wf));
+    });
+    if (!histWafers.length && wfState.step2_data && wfState.step2_data.baseline_summary) {
+      (wfState.step2_data.baseline_summary.wafers || []).forEach((wf) => histWafers.push(wf));
+    }
+
+    // Left panel: OB vs PH/FH Frontier with +-1sigma error bars on proposed BO candidates
+    const box = { x: 56, y: 34, w: 530, h: 226 };
+    const allX = [
+      obMaxSpec + 30,
+      ...histWafers.map((wf) => Number((wf.measured || {}).ob_nm)).filter(Number.isFinite),
+      ...cands.map((c) => Number((c.predicted || {}).ob_nm)).filter(Number.isFinite),
+    ];
+    const allY = [
+      yMinSpec,
+      ...histWafers.map((wf) => Number(goal === "partial_fill" ? (wf.measured || {}).fill_height_110_nm : (wf.measured || {}).ph_depth_110_nm)).filter(Number.isFinite),
+      ...cands.map((c) => Number(goal === "partial_fill" ? (c.predicted || {}).fill_height_110_nm || (c.predicted || {}).ph_depth_110_nm : (c.predicted || {}).ph_depth_110_nm)).filter(Number.isFinite),
+    ];
+    const xMin = Math.min(35, ...allX) - 10;
+    const xMax = Math.max(140, ...allX) + 14;
+    const yMin = goal === "partial_fill" ? Math.min(300, ...allY) - 25 : Math.min(560, ...allY) - 25;
+    const yMax = goal === "partial_fill" ? Math.max(660, ...allY) + 25 : 1020;
+
+    const sx = (v) => box.x + ((v - xMin) / Math.max(1, xMax - xMin)) * box.w;
+    const sy = (v) => box.y + box.h - ((v - yMin) / Math.max(1, yMax - yMin)) * box.h;
+
+    // Shaded target zone
+    const rx2 = Math.max(box.x, Math.min(box.x + box.w, sx(obMaxSpec)));
+    const ryTop = Math.max(box.y, sy(yMaxSpec));
+    const ryBot = Math.min(box.y + box.h, sy(yMinSpec));
+    ctx.fillStyle = dark ? "rgba(16,185,129,0.20)" : "rgba(5,150,105,0.14)";
+    ctx.fillRect(box.x, ryTop, Math.max(0, rx2 - box.x), Math.max(0, ryBot - ryTop));
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = dark ? "#34d399" : "#059669";
+    ctx.strokeRect(box.x, ryTop, Math.max(0, rx2 - box.x), Math.max(0, ryBot - ryTop));
+    ctx.restore();
+
+    ctx.strokeStyle = borderCol;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = textCol;
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("Historical Wafers (gray) → Proposed BO Batch (±1σ error bars)", box.x, 20);
+
+    // Historical points
+    histWafers.forEach((wf) => {
+      const m = wf.measured || {};
+      const x = Number(m.ob_nm);
+      const y = Number(goal === "partial_fill" ? m.fill_height_110_nm : m.ph_depth_110_nm);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      ctx.fillStyle = wf.meets_spec ? (dark ? "#34d399" : "#059669") : (dark ? "rgba(148,163,184,0.65)" : "rgba(100,116,139,0.55)");
+      ctx.beginPath(); ctx.arc(sx(x), sy(y), 4.5, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Proposed BO candidates with +-1sigma error crosshairs & star/ring markers
+    const candCols = [dark ? "#34d399" : "#059669", dark ? "#38bdf8" : "#0284c7", dark ? "#a78bfa" : "#7c3aed"];
+    cands.forEach((c, i) => {
+      const p = c.predicted || {};
+      const cx = Number(p.ob_nm);
+      const cy = Number(goal === "partial_fill" ? (p.fill_height_110_nm ?? p.ph_depth_110_nm) : p.ph_depth_110_nm);
+      const sxStd = Number(p.ob_std || 8);
+      const syStd = Number(p.ph_depth_110_std || 14);
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+      const px = sx(cx);
+      const py = sy(cy);
+      const col = candCols[i % candCols.length];
+
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(Math.max(box.x, sx(cx - sxStd)), py);
+      ctx.lineTo(Math.min(box.x + box.w, sx(cx + sxStd)), py);
+      ctx.moveTo(px, Math.max(box.y, sy(cy + syStd)));
+      ctx.lineTo(px, Math.min(box.y + box.h, sy(cy - syStd)));
+      ctx.stroke();
+
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(px, py, 7.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = bg;
+      ctx.font = "700 9.5px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(String(c.rank || i + 1), px - 3, py + 3.5);
+    });
+
+    ctx.fillStyle = mutedCol;
+    ctx.font = "10.5px ui-monospace, SFMono-Regular, monospace";
+    ctx.fillText(`Overburden OB (nm) · Spec <= ${obMaxSpec}`, box.x + box.w / 2 - 90, h - 10);
+    for (let i = 0; i <= 4; i++) {
+      const xv = xMin + (i / 4) * (xMax - xMin);
+      const yv = yMin + (i / 4) * (yMax - yMin);
+      ctx.fillText(xv.toFixed(0), sx(xv) - 10, box.y + box.h + 15);
+      ctx.fillText(yv.toFixed(0), 10, sy(yv) + 4);
+    }
+
+    // Right panel: Horizontal bar chart of P(Meets Spec) per candidate
+    const rx = 626;
+    const rw = w - rx - 24;
+    ctx.fillStyle = textCol;
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("Predicted P(Meets Spec) by BO Candidate", rx, 20);
+
+    const rowH = Math.min(62, Math.floor((box.h - 10) / Math.max(1, cands.length)));
+    cands.forEach((c, i) => {
+      const p = c.predicted || {};
+      const prob = Math.max(0, Math.min(1, Number(p.p_meets_spec || 0)));
+      const col = candCols[i % candCols.length];
+      const ry = box.y + 12 + i * rowH;
+
+      ctx.fillStyle = textCol;
+      ctx.font = "700 10.5px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`#${c.rank || i + 1} ${c.wafer_slot_id || ""}`, rx, ry + 11);
+      ctx.fillStyle = mutedCol;
+      ctx.font = "10px system-ui, sans-serif";
+      ctx.fillText(String(c.exploration_role || "").slice(0, 34), rx + 112, ry + 11);
+
+      // Bar background
+      ctx.fillStyle = dark ? "#1e293b" : "#e2e8f0";
+      ctx.fillRect(rx, ry + 18, rw - 46, 16);
+      ctx.fillStyle = col;
+      ctx.fillRect(rx, ry + 18, Math.max(4, (rw - 46) * prob), 16);
+      ctx.fillStyle = textCol;
+      ctx.font = "700 11px ui-monospace, SFMono-Regular, monospace";
+      ctx.fillText(`${Math.round(prob * 100)}%`, rx + rw - 40, ry + 30);
+    });
+  }
+
   function drawStepCanvases() {
+    drawStep2ScreeningFigures();
     drawCrossSectionFigure();
     drawRegimeMapFigure();
+    drawStep5BoParetoFigure();
     drawTrajectoryFigure();
   }
 
@@ -1952,7 +2371,7 @@
     qs("#btnStep2Next")?.addEventListener("click", (ev) =>
       runAction(ev.currentTarget, async () => {
         if (!wfState.step2_data.baseline_summary.count) {
-          wfState = await wfCall("/api/workflow/step2_load_data", "POST", { dataset_id: "amat_producer_baseline_8" });
+          wfState = await wfCall("/api/workflow/step2_load_data", "POST", { dataset_id: "big_semi_producer_baseline_8" });
           toast("Loaded prebuilt 8-wafer Producer baseline lot.");
         }
         goToStep("3");
