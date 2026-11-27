@@ -216,6 +216,11 @@
                   <label for="optAllowTrim">Allow 2-Step Ar/NH₃ Trim (<code>DED</code>)</label>
                 </span>
                 <button type="button" id="btnRefreshOpt" class="btn">Preview Candidates (No Log)</button>
+                <button type="button" id="btnAsyncLoocvRefit" class="btn" title="Runs full leave-one-out cross-validation refit in background worker pool">Async LOOCV Refit</button>
+              </div>
+              <div class="async-job-strip" aria-label="Background refit job status">
+                <progress id="loocvJobProgress" class="pang-progress" max="100" hidden aria-label="Background LOOCV refit progress"></progress>
+                <div id="loocvJobStatus" class="async-job-status mono" role="status" aria-live="polite"></div>
               </div>
 
               <div id="recContainer" class="lit-grid"></div>
@@ -607,16 +612,46 @@
               </div>
             </div>
 
-            <!-- Callable 3D Molecular & Atomistic Simulation Studio (`RDKit ETKDGv3 + MMFF94s` + `LAMMPS ReaxFF / AIREBO`) -->
+            <!-- Callable 3D Molecular & Open-Source Quantum MD Studio (`RDKit MMFF94s` + `tblite GFN2-xTB / ASE` + `LAMMPS ReaxFF`) -->
             <div class="card">
               <h2 class="section-title">
-                <span>Callable 3D Molecular &amp; Atomistic Simulation (`a-C:H:N` Network Relaxation + `LAMMPS ReaxFF / AIREBO` Bridge)</span>
+                <span>Callable 3D Molecular &amp; Open-Source Quantum MD Studio (`RDKit` + `tblite GFN2-xTB / ASE` + `LAMMPS ReaxFF`)</span>
                 <div style="display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;">
+                  <span id="molEngineStatusBadge" class="badge badge-ok mono">tblite GFN2-xTB + ASE</span>
                   <span id="molArchetypeBadge" class="badge mono">53-Atom a-C:H:N Cluster</span>
                   <button type="button" id="btnToggleMolSpin" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" aria-pressed="true">Auto-Spin: On</button>
                   <button type="button" id="btnPushMolSandbox" class="btn" style="font-size:0.76rem; padding:0.22rem 0.55rem;">+ Push Coupled Sim to Sandbox</button>
                 </div>
               </h2>
+
+              <!-- Real Open-Source Quantum Molecular Dynamics Controls (`tblite` LGPL-3.0 + `ASE`) -->
+              <div class="qm-control-bar" style="margin-block-end:0.65rem;">
+                <label for="molQmMode"><strong>Open-Source QM MD:</strong>
+                  <select id="molQmMode">
+                    <option value="thermal_nvt_md" selected>NVT Thermal Annealing at Wafer T_s (Langevin MD)</option>
+                    <option value="radical_impingement_md">Plasma Radical Impingement (C₂H• / NH₂• → Surface)</option>
+                    <option value="qm_geometry_opt">BFGS Quantum Geometry Optimization (0 K)</option>
+                  </select>
+                </label>
+                <label for="molQmMethod">Hamiltonian:
+                  <select id="molQmMethod">
+                    <option value="GFN2-xTB" selected>GFN2-xTB (tblite)</option>
+                    <option value="GFN1-xTB">GFN1-xTB (tblite)</option>
+                  </select>
+                </label>
+                <label for="molQmSteps">Steps:
+                  <select id="molQmSteps">
+                    <option value="16">16 steps (8 fs)</option>
+                    <option value="24" selected>24 steps (12 fs)</option>
+                    <option value="40">40 steps (20 fs)</option>
+                  </select>
+                </label>
+                <button type="button" id="btnRunQmMd" class="btn btn-primary" style="font-size:0.76rem; padding:0.26rem 0.65rem;">▶ Run Real GFN2-xTB Quantum MD</button>
+              </div>
+              <div class="async-job-strip" style="margin-block-end:0.65rem;">
+                <progress id="molQmProgress" class="pang-progress" max="100" hidden aria-label="Quantum molecular dynamics job progress"></progress>
+                <div id="molQmLiveStatus" class="async-job-status mono" role="status" aria-live="polite"></div>
+              </div>
 
               <div class="wm-inline-grid">
                 <div class="rec-card" style="display:flex; flex-direction:column; gap:0.45rem;">
@@ -625,13 +660,26 @@
                     <span id="molFormulaBadge" class="badge badge-ok mono">--</span>
                   </div>
                   <canvas id="mol3dCanvas" role="img" aria-label="Interactive 3D ball-and-stick molecular model of recipe-matched a-C:H:N amorphous carbon network" style="width:100%; height:265px; display:block; cursor:grab;"></canvas>
+                  <div id="molFrameControls" hidden style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; font-size:0.74rem;">
+                    <button type="button" id="btnMolPlayTraj" class="btn" style="font-size:0.72rem; padding:0.18rem 0.48rem;" aria-pressed="false">▶ Play Trajectory</button>
+                    <label for="molFrameRange" style="flex:1; display:flex; align-items:center; gap:0.4rem;">
+                      <span>Frame:</span>
+                      <input id="molFrameRange" type="range" min="0" max="1" step="1" value="0" style="flex:1;" />
+                    </label>
+                    <span id="molFrameLabel" class="mono" style="color:var(--muted);">--</span>
+                  </div>
                   <div id="molMetricsStrip" class="telemetry-strip mono" style="margin:0; font-size:0.76rem;"></div>
+                  <div id="molQmSummaryStrip" class="telemetry-strip mono" hidden style="margin:0; font-size:0.75rem; border-color:color-mix(in srgb, var(--brand) 55%, var(--border));"></div>
                 </div>
 
                 <div class="rec-card" style="display:flex; flex-direction:column; gap:0.5rem;">
                   <div style="font-size:0.78rem; color:var(--muted);" id="molClusterDesc">
-                    Live-coupled to chamber knobs: PANG's CCP gas-phase model passes wafer temperature T_s, sheath ion energy E_i, and radical flux ratio Γ_(H+NHx)/Γ_C2Hx to relax a 3D stoichiometric nanocluster (`ETKDGv3 + MMFF94s`) and emit ready-to-run `LAMMPS ReaxFF / AIREBO` &amp; `ASE GAP-20` decks.
+                    Live-coupled to chamber knobs: RDKit relaxes the 3D stoichiometric nanocluster instantly (`<80 ms`), `tblite GFN2-xTB + ASE` runs real semi-empirical quantum MD on-demand (HOMO-LUMO gap, Wiberg bond orders, radical chemisorption), and `LAMMPS ReaxFF / AIREBO` decks export for large-scale HPC runs.
                   </div>
+                  <figure id="molQmTrajWrap" class="guided-figure" hidden style="padding:0.5rem; margin:0;">
+                    <canvas id="molQmTrajCanvas" role="img" aria-label="GFN2-xTB Quantum MD potential energy change and instantaneous kinetic temperature trajectory" style="width:100%; height:155px; display:block;"></canvas>
+                    <figcaption>Real open-source <code>tblite</code> semi-empirical quantum trajectory (predicted; not a physical wafer measurement).</figcaption>
+                  </figure>
                   <div style="display:flex; flex-wrap:wrap; gap:0.35rem;">
                     <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="pdb">Download 3D `.pdb`</button>
                     <button type="button" class="btn" style="font-size:0.76rem; padding:0.22rem 0.5rem;" data-mol-dl="sdf">Download `.sdf`</button>
@@ -1024,13 +1072,14 @@
                 <span>Configuration-to-Literature &amp; Benchmark Search ("For This Configuration, Here Are the Most Relevant Papers")</span>
                 <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem;">
                   <button type="button" id="btnMatchActiveWhatIfConfig" class="btn btn-primary" style="font-size:0.76rem; padding:0.28rem 0.62rem;">⚡ Match Active What-If Recipe</button>
+                  <button type="button" id="btnExportKbConfigCsv" class="btn" style="font-size:0.76rem; padding:0.28rem 0.58rem;">⬇ Export Reading List (.csv)</button>
                   <button type="button" id="btnResetKbConfigSearch" class="btn" style="font-size:0.76rem; padding:0.28rem 0.58rem;">Reset Filters</button>
                 </div>
               </h2>
 
               <search id="kbConfigSearchLandmark" class="config-search-landmark" aria-label="Search papers and quantitative benchmarks by chamber and feature configuration">
                 <div style="font-size:0.79rem; color:var(--muted);">
-                  Select a quick chamber/feature preset, sync your active recipe, or combine configuration facets below to rank all <b>102 verified papers</b> and <b>10 quantitative benchmark datasets</b> by physical regime match:
+                  Select a quick chamber/feature preset, sync your active recipe, enter continuous operating targets, or combine configuration facets below to rank all <b>132 verified papers</b> and <b>12 quantitative benchmark datasets (129 rows)</b> by physical regime match:
                 </div>
                 <div id="kbConfigPresetBar" class="config-preset-bar" role="group" aria-label="Configuration search presets"></div>
 
@@ -1106,17 +1155,38 @@
                       </select>
                     </label>
                     <label for="kbConfigKeywordInput">Keyword / Formula / DOI Filter
-                      <input id="kbConfigKeywordInput" name="query" type="search" placeholder="e.g. C2H2, graphitic N, Bosanquet, pulsed, 27.12…" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      <input id="kbConfigKeywordInput" name="query" type="search" placeholder="e.g. C2H2, graphitic N, PI-VM, Bosanquet, edge ring…" autocorrect="off" autocapitalize="none" spellcheck="false" />
                     </label>
                   </div>
+
+                  <fieldset class="config-numeric-strip">
+                    <legend>Optional Numeric Operating Point (Continuous Window Proximity Scoring)</legend>
+                    <div class="config-numeric-grid">
+                      <label for="cfgNumFreq">RF Frequency (MHz)
+                        <input id="cfgNumFreq" name="freq_mhz" type="text" inputmode="decimal" placeholder="e.g. 27.12" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      </label>
+                      <label for="cfgNumPres">Pressure (Torr)
+                        <input id="cfgNumPres" name="pressure_torr" type="text" inputmode="decimal" placeholder="e.g. 18.5" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      </label>
+                      <label for="cfgNumTemp">Wafer Temp (°C)
+                        <input id="cfgNumTemp" name="temp_c" type="text" inputmode="decimal" placeholder="e.g. 560" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      </label>
+                      <label for="cfgNumAr">Feature Aspect Ratio (H/W)
+                        <input id="cfgNumAr" name="aspect_ratio" type="text" inputmode="decimal" placeholder="e.g. 9.1" autocorrect="off" autocapitalize="none" spellcheck="false" />
+                      </label>
+                    </div>
+                  </fieldset>
+
                   <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.5rem; margin-block-end:0.55rem;">
                     <button type="submit" id="btnSubmitKbConfigSearch" class="btn btn-primary">Find Most Relevant Papers &amp; Benchmark Data</button>
-                    <div id="kbConfigLiveStatus" role="status" aria-live="polite" class="badge badge-ok mono">Ready · 102 Verified Sources Indexed</div>
+                    <div id="kbConfigLiveStatus" role="status" aria-live="polite" class="badge badge-ok mono">Ready · 132 Verified Sources Indexed</div>
                   </div>
                 </form>
               </search>
 
               <div id="kbConfigSummaryBanner" class="config-summary-banner"></div>
+              <div id="kbConfigSimilarBanner" class="similar-anchor-bar" hidden></div>
+              <div id="kbConfigBriefBox" class="config-brief-card" hidden></div>
               <div id="kbConfigPapersGrid" class="config-ranked-grid"></div>
 
               <details id="kbConfigMatchedRowsDetails" style="margin-block-start:0.75rem;" open>
@@ -1451,6 +1521,8 @@
     </form>
   </dialog>
 
+  <script src="js/async_jobs.js"></script>
+  <script src="js/molecular_studio.js"></script>
   <script src="world_static.js"></script>
   <script src="app.js"></script>
   <script src="sprints_hub.js"></script>

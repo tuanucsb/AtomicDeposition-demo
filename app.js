@@ -19,19 +19,9 @@
   let wmSweepAsTable = false;
   let wmInlineFrameIdx = 47;
   let wmInlinePlaying = false;
-  let molSimData = null;
   let pendingDeleteExpId = null;
   let kbOverviewCache = null;
   let colorProbeEl = null;
-
-  const molView = {
-    rx: 0.36,
-    ry: 0.62,
-    dragging: false,
-    lx: 0,
-    ly: 0,
-    autoSpin: true,
-  };
 
   const kgState = {
     selectedType: "node",     // "node" | "edge"
@@ -2409,250 +2399,40 @@
     });
   }
 
-  // 3D Molecular Ball-and-Stick Renderer & Deck Exporter
-  let molAbortCtrl = null;
-  async function updateMolecularSimulation(rcp) {
-    if (!qs("#mol3dCanvas")) return;
-    if (molAbortCtrl) molAbortCtrl.abort();
-    molAbortCtrl = new AbortController();
-    try {
-      molSimData = await fetchJsonChecked(
-        "/api/molecular/simulate",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipe: rcp, n_conformers: 4, seed: 42, workspace: activeWorkspace }),
-          signal: molAbortCtrl.signal,
+  // 3D Molecular Ball-and-Stick + Open-Source `tblite` GFN2-xTB Quantum MD Studio (`static/js/molecular_studio.js`)
+  const molStudio = window.PANGMolecularStudio
+    ? window.PANGMolecularStudio.initMolecularStudio({
+        qs,
+        qsa,
+        esc,
+        setupHiDpiCanvas,
+        themePalette,
+        fetchJsonChecked,
+        readJsonSafe,
+        formatApiError,
+        withBusyButton,
+        downloadBlob,
+        showToast,
+        readRecipe: () => readKgWhatIfRecipe(),
+        getWorkspace: () => activeWorkspace,
+        setWorkspace: (ws) => {
+          activeWorkspace = ws;
+          syncWorkspaceChrome();
         },
-        "Molecular simulation failed"
-      );
-      const c3d = molSimData.cluster_3d || {};
-      const arch = molSimData.archetype || {};
-      const cp = molSimData.coupled_priors || {};
-      if (qs("#molArchetypeBadge")) qs("#molArchetypeBadge").textContent = `${c3d.n_atoms}-Atom · ${c3d.force_field}`;
-      if (qs("#molClusterTitle")) qs("#molClusterTitle").textContent = arch.label || "3D a-C:H:N Network";
-      if (qs("#molFormulaBadge")) qs("#molFormulaBadge").textContent = `${c3d.formula} (${c3d.molecular_weight_da} Da)`;
-      if (qs("#molClusterDesc")) {
-        qs("#molClusterDesc").textContent = `${arch.regime_condition} — ${arch.description}`;
-      }
-      if (qs("#molMetricsStrip")) {
-        qs("#molMetricsStrip").innerHTML = `
-          <span><b>3D Relaxed:</b> E_min=${esc(c3d.minimized_energy_kcal_mol)} kcal/mol (ΔE=${esc(c3d.relaxation_delta_kcal_mol)}) · V_vdW=${esc(c3d.vdw_volume_a3)} Å³ · R_g=${esc(c3d.radius_of_gyration_a)} Å</span>
-          <span><b>Coupled Priors:</b> sp²=${Math.round((cp.md_sp2_fraction || 0) * 100)}% · sp³=${Math.round((cp.md_sp3_fraction || 0) * 100)}% · sp=${Math.round((cp.md_sp_triple_fraction || 0) * 100)}% · β_MD=${esc(cp.md_implied_beta_eff)} · ρ_MD=${esc(cp.md_bulk_density_g_cm3)} g/cm³</span>
-        `;
-      }
-      if (qs("#molDeckPreview") && molSimData.external_md_decks) {
-        qs("#molDeckPreview").textContent = molSimData.external_md_decks.lammps_reaxff_in;
-      }
-      drawMolecule3dCanvas();
-    } catch (err) {
-      if (err.name !== "AbortError") console.error(err);
-    }
+        refreshAll: () => refreshAll(),
+        isStaticDemo: IS_STATIC_DEMO,
+      })
+    : null;
+
+  async function updateMolecularSimulation(rcp) {
+    if (molStudio) return molStudio.updateMolecularSimulation(rcp);
   }
 
   function drawMolecule3dCanvas() {
-    const setup = setupHiDpiCanvas(qs("#mol3dCanvas"));
-    if (!setup || !molSimData || !molSimData.cluster_3d) return;
-    const { ctx, w, h } = setup;
-    const pal = themePalette();
-    const atoms = molSimData.cluster_3d.atoms || [];
-    const bonds = molSimData.cluster_3d.bonds || [];
-    if (!atoms.length) return;
-
-    ctx.fillStyle = "#080d18";
-    ctx.fillRect(0, 0, w, h);
-
-    // Center coordinates around centroid
-    let mx = 0, my = 0, mz = 0;
-    atoms.forEach((a) => { mx += a.x; my += a.y; mz += a.z; });
-    mx /= atoms.length; my /= atoms.length; mz /= atoms.length;
-
-    const cosY = Math.cos(molView.ry), sinY = Math.sin(molView.ry);
-    const cosX = Math.cos(molView.rx), sinX = Math.sin(molView.rx);
-    let maxSpan = 1.0;
-    const rotated = atoms.map((a) => {
-      const dx = a.x - mx, dy = a.y - my, dz = a.z - mz;
-      const x1 = dx * cosY + dz * sinY;
-      const z1 = -dx * sinY + dz * cosY;
-      const y2 = dy * cosX - z1 * sinX;
-      const z2 = dy * sinX + z1 * cosX;
-      maxSpan = Math.max(maxSpan, Math.hypot(x1, y2, z2));
-      return { ...a, rx: x1, ry: y2, rz: z2 };
-    });
-
-    const scale = (Math.min(w, h) * 0.41) / maxSpan;
-    const camDist = maxSpan * 3.4;
-    const projected = rotated.map((a) => {
-      const persp = camDist / Math.max(1.5, camDist - a.rz);
-      return {
-        ...a,
-        px: w / 2 + a.rx * scale * persp,
-        py: h / 2 - a.ry * scale * persp,
-        persp,
-      };
-    });
-
-    // Draw depth-sorted bonds (single, double, triple C≡N / C≡C)
-    const sortedBonds = [...bonds].sort((b1, b2) => {
-      const z1 = (projected[b1.begin].rz + projected[b1.end].rz) * 0.5;
-      const z2 = (projected[b2.begin].rz + projected[b2.end].rz) * 0.5;
-      return z1 - z2;
-    });
-
-    sortedBonds.forEach((b) => {
-      const a1 = projected[b.begin];
-      const a2 = projected[b.end];
-      const ux = a2.px - a1.px, uy = a2.py - a1.py;
-      const len = Math.hypot(ux, uy) || 1;
-      const nx = -uy / len, ny = ux / len;
-      const order = Math.round(b.order || 1);
-      ctx.strokeStyle = b.is_aromatic ? "#60a5fa" : "#64748b";
-      ctx.lineWidth = order >= 3 ? 1.5 : 2.1;
-      const offsets = order >= 3 ? [-2.6, 0, 2.6] : order === 2 ? [-1.8, 1.8] : [0];
-      offsets.forEach((off) => {
-        ctx.beginPath();
-        ctx.moveTo(a1.px + nx * off, a1.py + ny * off);
-        ctx.lineTo(a2.px + nx * off, a2.py + ny * off);
-        ctx.stroke();
-      });
-    });
-
-    // Draw depth-sorted CPK atoms (C = slate/graphite, N = royal cyan-blue, H = crisp light)
-    const elemStyle = {
-      C: { fill: "#94a3b8", rim: "#cbd5e1", rad: 5.4 },
-      N: { fill: "#38bdf8", rim: "#bae6fd", rad: 5.8 },
-      H: { fill: "#f8fafc", rim: "#94a3b8", rad: 3.3 },
-    };
-    const sortedAtoms = [...projected].sort((a, b) => a.rz - b.rz);
-    sortedAtoms.forEach((a) => {
-      const st = elemStyle[a.element] || elemStyle.C;
-      const rPx = Math.max(2.2, st.rad * a.persp);
-      ctx.beginPath();
-      ctx.fillStyle = st.fill;
-      ctx.arc(a.px, a.py, rPx, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = st.rim;
-      ctx.lineWidth = 0.85;
-      ctx.stroke();
-    });
-
-    // Legend overlay
-    ctx.font = "600 10.5px ui-monospace, monospace";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillText("● C (sp²/sp³/sp)", 12, h - 10);
-    ctx.fillStyle = "#38bdf8";
-    ctx.fillText("● N (pyridinic/-NH₂/-C≡N)", 122, h - 10);
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillText("● H", 295, h - 10);
-    ctx.fillStyle = pal.muted;
-    ctx.textAlign = "right";
-    ctx.fillText("Drag to rotate 3D", w - 12, h - 10);
-  }
-
-  const molCanvasEl = qs("#mol3dCanvas");
-  if (molCanvasEl) {
-    molCanvasEl.addEventListener("pointerdown", (e) => {
-      molView.dragging = true;
-      molView.lx = e.clientX;
-      molView.ly = e.clientY;
-      molCanvasEl.setPointerCapture(e.pointerId);
-    });
-    molCanvasEl.addEventListener("pointermove", (e) => {
-      if (!molView.dragging) return;
-      molView.ry += (e.clientX - molView.lx) * 0.012;
-      molView.rx += (e.clientY - molView.ly) * 0.012;
-      molView.lx = e.clientX;
-      molView.ly = e.clientY;
-      drawMolecule3dCanvas();
-    });
-    molCanvasEl.addEventListener("pointerup", () => { molView.dragging = false; });
-    molCanvasEl.addEventListener("pointercancel", () => { molView.dragging = false; });
-  }
-
-  if (qs("#btnToggleMolSpin")) {
-    qs("#btnToggleMolSpin").addEventListener("click", (e) => {
-      molView.autoSpin = !molView.autoSpin;
-      e.currentTarget.setAttribute("aria-pressed", String(molView.autoSpin));
-      e.currentTarget.textContent = `Auto-Spin: ${molView.autoSpin ? "On" : "Off"}`;
-    });
-  }
-
-  setInterval(() => {
-    if (!molView.autoSpin || molView.dragging || !molSimData) return;
-    if (qs("#panel-knowledge") && qs("#panel-knowledge").hasAttribute("hidden")) return;
-    molView.ry += 0.025;
-    drawMolecule3dCanvas();
-  }, 55);
-
-  qsa("[data-mol-dl]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      await withBusyButton(btn, async () => {
-        const fmt = btn.getAttribute("data-mol-dl");
-        if (IS_STATIC_DEMO && molSimData) {
-          const c3d = molSimData.cluster_3d || {};
-          const decks = molSimData.external_md_decks || {};
-          const map = {
-            pdb: [`pecvd_${c3d.formula || "achn"}.pdb`, "chemical/x-pdb", c3d.pdb_block],
-            sdf: [`pecvd_${c3d.formula || "achn"}.sdf`, "chemical/x-mdl-sdfile", c3d.sdf_block],
-            lammps_reaxff: ["in.pecvd_achn_reaxff", "text/plain", decks.lammps_reaxff_in],
-            lammps_data: ["data.pecvd_achn.lmp", "text/plain", decks.lammps_data_lmp],
-            lammps_airebo: ["in.pecvd_achn_airebo", "text/plain", decks.lammps_airebo_in],
-            ase_py: ["run_pecvd_gap20_md.py", "text/x-python", decks.ase_script_py],
-          };
-          const entry = map[fmt];
-          if (entry && entry[2]) {
-            downloadBlob(entry[0], entry[1], entry[2]);
-            showToast(`Exported molecular file: ${entry[0]}`);
-            return;
-          }
-        }
-        const rcp = readKgWhatIfRecipe();
-        const resp = await fetch(`/api/molecular/export/${encodeURIComponent(fmt)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipe: rcp, n_conformers: 4, seed: 42, workspace: activeWorkspace }),
-        });
-        if (!resp.ok) {
-          const errBody = await readJsonSafe(resp);
-          showToast(formatApiError(errBody, resp.status, "Failed to export molecular deck"));
-          return;
-        }
-        const cd = resp.headers.get("Content-Disposition") || "";
-        const match = cd.match(/filename="([^"]+)"/);
-        const fname = match ? match[1] : `pecvd_molecular_${fmt}.txt`;
-        const text = await resp.text();
-        downloadBlob(fname, resp.headers.get("Content-Type") || "text/plain", text);
-        showToast(`Exported molecular file: ${fname}`);
-      });
-    });
-  });
-
-  if (qs("#btnPushMolSandbox")) {
-    qs("#btnPushMolSandbox").addEventListener("click", async (ev) => {
-      await withBusyButton(ev.currentTarget, async () => {
-        try {
-          const rcp = readKgWhatIfRecipe();
-          const out = await fetchJsonChecked(
-            "/api/molecular/simulate",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ recipe: rcp, n_conformers: 4, seed: 42, workspace: "sandbox", ingest_to_sandbox: true }),
-            },
-            "Failed to push molecular simulation"
-          );
-          activeWorkspace = "sandbox";
-          syncWorkspaceChrome();
-          await refreshAll();
-          showToast(
-            `Assimilated coupled 3D Molecular Sim (${out.cluster_3d.formula}, β_MD=${out.coupled_priors.md_implied_beta_eff}) into Sandbox Brain v${out.sandbox_brain_version}!`
-          );
-        } catch (err) {
-          showToast(err.message);
-        }
-      });
-    });
+    if (molStudio) {
+      molStudio.drawMolecule3dCanvas();
+      molStudio.drawQmTrajectoryPlot();
+    }
   }
 
   // ------------------------------------------------------------------
@@ -4304,6 +4084,31 @@
   qs("#btnRefreshOpt").addEventListener("click", (ev) =>
     withBusyButton(ev.currentTarget, () => loadRecommendations(false))
   );
+  if (qs("#btnAsyncLoocvRefit")) {
+    qs("#btnAsyncLoocvRefit").addEventListener("click", (ev) =>
+      withBusyButton(ev.currentTarget, async () => {
+        if (IS_STATIC_DEMO) {
+          showToast("Async LOOCV refits require the local FastAPI backend (`uv run python server.py`).");
+          return;
+        }
+        if (!window.PANGAsyncJobs) return;
+        const progressEl = qs("#loocvJobProgress");
+        const statusEl = qs("#loocvJobStatus");
+        try {
+          const job = await window.PANGAsyncJobs.submitAndPoll(
+            "/api/jobs/loocv_refit",
+            { workspace: activeWorkspace, compute_loocv: true, wait_sync: false },
+            { progressEl, statusEl, intervalMs: 280 }
+          );
+          await refreshAll();
+          const ver = job && job.result ? job.result.brain_version : "";
+          showToast(`Background LOOCV refit finished on '${activeWorkspace}' (Brain v${ver}).`);
+        } catch (err) {
+          showToast(err.message || "Async LOOCV refit failed");
+        }
+      })
+    );
+  }
   qs("#optGoal").addEventListener("change", () => loadRecommendations(false));
   qs("#optFreq").addEventListener("change", () => loadRecommendations(false));
   qs("#optBatch").addEventListener("change", () => loadRecommendations(false));

@@ -612,6 +612,12 @@
     bo_ml_surrogate: "BO/ML Surrogate/VM",
   };
 
+  function fmtRangeStatic(lo, hi, unit) {
+    const f = (v) => Number(Number(v).toPrecision(6)).toString();
+    if (Math.abs(hi - lo) < 1e-6) return `${f(lo)} ${unit}`.trim();
+    return `${f(lo)}–${f(hi)} ${unit}`.trim();
+  }
+
   function deriveFacetsFromRecipeStatic(recipe, goal) {
     const r = recipe || {};
     const freq = Number(r.freq_mhz ?? 27.12);
@@ -648,6 +654,12 @@
 
     return {
       filters: { rf_regime, pressure_regime, temp_regime, chemistry, geometry, process_mode, method: "any" },
+      numeric_targets: {
+        freq_mhz: round(freq, 2),
+        pressure_torr: round(pres, 4),
+        temp_c: round(temp, 1),
+        aspect_ratio: round(arVal, 2),
+      },
       secondary_geometries,
       secondary_modes,
       has_pulsed_or_trim: trim >= 0.04,
@@ -655,7 +667,81 @@
     };
   }
 
-  function scorePaperForConfigStatic(paper, filters, secGeoms, secModes, hasPulsed) {
+  function scoreNumericProximityStatic(nw, targets) {
+    let earned = 0.0;
+    let possible = 0.0;
+    const reasons = [];
+    const notes = [];
+    const numFmt = (v) => Number(Number(v).toPrecision(6)).toString();
+
+    const pVal = targets.pressure_torr;
+    const pRng = nw.pressure_torr_range;
+    if (pVal != null && pVal > 0 && Array.isArray(pRng) && pRng.length === 2 && pRng[0] > 0) {
+      possible += 12.0;
+      const lo = Number(pRng[0]);
+      const hi = Number(pRng[1]);
+      if (lo <= pVal && pVal <= hi) {
+        earned += 12.0;
+        reasons.push(`P=${numFmt(pVal)}T ∈ [${fmtRangeStatic(lo, hi, "T")}]`);
+      } else {
+        const edge = pVal < lo ? lo : hi;
+        const dec = Math.abs(Math.log10(Math.max(1e-6, pVal)) - Math.log10(Math.max(1e-6, edge)));
+        earned += 12.0 * Math.max(0.0, 1.0 - dec / 2.2);
+        if (dec >= 1.4) notes.push(`Pressure gap ${dec.toFixed(1)} decades (paper: ${fmtRangeStatic(lo, hi, "Torr")})`);
+      }
+    }
+
+    const tVal = targets.temp_c;
+    const tRng = nw.temp_c_range;
+    if (tVal != null && Array.isArray(tRng) && tRng.length === 2) {
+      possible += 10.0;
+      const lo = Number(tRng[0]);
+      const hi = Number(tRng[1]);
+      if (lo <= tVal && tVal <= hi) {
+        earned += 10.0;
+        reasons.push(`T=${tVal.toFixed(0)}°C ∈ [${fmtRangeStatic(lo, hi, "°C")}]`);
+      } else {
+        const diff = tVal < lo ? lo - tVal : tVal - hi;
+        earned += 10.0 * Math.max(0.0, 1.0 - diff / 260.0);
+        if (diff >= 220.0) notes.push(`Temp gap ${diff.toFixed(0)} °C (paper: ${fmtRangeStatic(lo, hi, "°C")})`);
+      }
+    }
+
+    const fVal = targets.freq_mhz;
+    const fRng = nw.freq_mhz_range;
+    if (fVal != null && fVal > 0 && Array.isArray(fRng) && fRng.length === 2 && fRng[0] > 0) {
+      possible += 10.0;
+      const lo = Number(fRng[0]);
+      const hi = Number(fRng[1]);
+      if (lo <= fVal && fVal <= hi) {
+        earned += 10.0;
+        reasons.push(`RF=${numFmt(fVal)}MHz ∈ [${fmtRangeStatic(lo, hi, "MHz")}]`);
+      } else {
+        const edge = fVal < lo ? lo : hi;
+        const octaves = Math.abs(Math.log2(Math.max(0.1, fVal)) - Math.log2(Math.max(0.1, edge)));
+        earned += 10.0 * Math.max(0.0, 1.0 - octaves / 2.0);
+      }
+    }
+
+    const arVal = targets.aspect_ratio;
+    const arRng = nw.ar_range;
+    if (arVal != null && arVal >= 0 && Array.isArray(arRng) && arRng.length === 2) {
+      possible += 10.0;
+      const lo = Number(arRng[0]);
+      const hi = Number(arRng[1]);
+      if (lo <= arVal && arVal <= hi) {
+        earned += 10.0;
+        reasons.push(`AR=${numFmt(arVal)} ∈ [${fmtRangeStatic(lo, hi, ":1")}]`);
+      } else {
+        const diff = arVal < lo ? lo - arVal : arVal - hi;
+        earned += 10.0 * Math.max(0.0, 1.0 - diff / 8.0);
+      }
+    }
+
+    return { earned, possible, reasons, notes };
+  }
+
+  function scorePaperForConfigStatic(paper, filters, numericTargets, secGeoms, secModes, hasPulsed) {
     const cp = paper.config_profile || {};
     const rfList = cp.rf_regimes || [];
     const pList = cp.pressure_regimes || [];
@@ -664,6 +750,7 @@
     const gList = cp.geometries || [];
     const mList = cp.process_modes || [];
     const dList = cp.methods_diagnostics || [];
+    const nw = cp.numeric_windows || {};
     const fidelity = cp.regime_fidelity || "analogous_extrapolated";
 
     let earned = 0.0;
@@ -782,6 +869,18 @@
       }
     }
 
+    if (numericTargets && Object.keys(numericTargets).length) {
+      const np = scoreNumericProximityStatic(nw, numericTargets);
+      earned += np.earned;
+      possible += np.possible;
+      np.reasons.forEach((r) => {
+        if (!reasons.includes(r)) reasons.push(r);
+      });
+      np.notes.forEach((n) => {
+        if (!notes.includes(n)) notes.push(n);
+      });
+    }
+
     const fidelityBonus = fidelity === "exact_pecvd_har" ? 6.0 : fidelity === "direct_subsystem" ? 3.0 : 0.0;
     let rawPct;
     if (possible <= 0.0) {
@@ -797,10 +896,96 @@
 
     return {
       score: round(rawPct, 1),
-      matched_reasons: reasons.slice(0, 6),
+      matched_reasons: reasons.slice(0, 7),
       extrapolation_notes: notes.slice(0, 2),
       regime_fidelity: fidelity,
       window_summary: cp.window_summary || "",
+      numeric_windows: nw,
+    };
+  }
+
+  function scorePaperSimilarityStatic(anchor, candidate) {
+    const cpA = anchor.config_profile || {};
+    const cpB = candidate.config_profile || {};
+    const axes = [
+      ["chemistries", 24.0],
+      ["geometries", 18.0],
+      ["process_modes", 18.0],
+      ["rf_regimes", 14.0],
+      ["pressure_regimes", 12.0],
+      ["temp_regimes", 10.0],
+      ["methods_diagnostics", 14.0],
+    ];
+    let earned = 0.0;
+    let possible = 0.0;
+    const reasons = [];
+    const lbl = (k) => KB_SHORT_REASON_LABELS[k] || k;
+
+    axes.forEach(([axis, w]) => {
+      const sa = new Set(cpA[axis] || []);
+      const sb = new Set(cpB[axis] || []);
+      const union = new Set([...sa, ...sb]);
+      if (!union.size) return;
+      possible += w;
+      const inter = [...sa].filter((x) => sb.has(x)).sort();
+      earned += w * (inter.length / union.size);
+      if (inter.length) reasons.push(lbl(inter[0]));
+    });
+
+    const tagsA = new Set(anchor.tags || []);
+    const tagsB = new Set(candidate.tags || []);
+    const tagUnion = new Set([...tagsA, ...tagsB]);
+    if (tagUnion.size) {
+      possible += 14.0;
+      const tagInter = [...tagsA].filter((x) => tagsB.has(x));
+      earned += 14.0 * (tagInter.length / tagUnion.size);
+    }
+
+    if (anchor.domain === candidate.domain) {
+      earned += 6.0;
+      possible += 6.0;
+    }
+
+    return {
+      score: round(Math.min(100.0, 100.0 * (earned / Math.max(1.0, possible))), 1),
+      matched_reasons: reasons.slice(0, 6),
+      extrapolation_notes: [],
+      regime_fidelity: cpB.regime_fidelity || "analogous_extrapolated",
+      window_summary: cpB.window_summary || "",
+      numeric_windows: cpB.numeric_windows || {},
+    };
+  }
+
+  function buildConfigBriefStatic(configSummary, papers, matchedRows) {
+    const top10 = papers.slice(0, 10);
+    const exactCnt = top10.filter((p) => p.regime_fidelity === "exact_pecvd_har").length;
+    const directCnt = top10.filter((p) => p.regime_fidelity === "direct_subsystem").length;
+    const takeaways = papers.slice(0, 3).map((p) => ({
+      paper_id: p.id,
+      citation: p.citation,
+      score: p.relevance_score,
+      takeaway: p.takeaway,
+    }));
+    const benchHi = matchedRows.slice(0, 3).map((r) => ({
+      row_label: r.row_label,
+      dataset_id: r.dataset_id,
+      provenance: r.provenance,
+      metrics_summary: r.metrics_summary,
+      source_ref: r.source_ref,
+    }));
+    const caveat =
+      exactCnt === 0 && papers.length
+        ? "Top matches are subsystem or analogous-regime studies; verify pressure/temperature extrapolation before committing patterned wafers."
+        : exactCnt > 0
+        ? `${exactCnt} exact PECVD/HAR source(s) and ${directCnt} direct subsystem source(s) anchor the top 10 results.`
+        : "";
+    return {
+      headline: `For ${configSummary}, here are the most relevant papers & quantitative benchmarks:`,
+      exact_in_top10: exactCnt,
+      direct_in_top10: directCnt,
+      regime_guidance: caveat,
+      top_takeaways: takeaways,
+      benchmark_highlights: benchHi,
     };
   }
 
@@ -815,16 +1000,19 @@
       process_mode: "any",
       method: "any",
     };
+    const resolvedNumeric = {};
     let secGeoms = [];
     let secModes = [];
     let hasPulsed = false;
-    let configSummary = "All Process Configurations (Full 102-Paper Corpus)";
+    const lit = (D.kb && D.kb.literature) || [];
+    let configSummary = `All Process Configurations (Full ${lit.length}-Paper Corpus)`;
 
     const presets = (D.kb && D.kb.search_presets) || [];
     if (req.preset_id) {
       const pr = presets.find((p) => p.preset_id === req.preset_id);
       if (pr) {
         Object.assign(resolvedFilters, pr.filters || {});
+        Object.assign(resolvedNumeric, pr.numeric_targets || {});
         secGeoms = (pr.secondary_geometries || []).slice();
         secModes = (pr.secondary_modes || []).slice();
         configSummary = `Preset · ${pr.label}`;
@@ -834,30 +1022,67 @@
     if (req.recipe) {
       const derived = deriveFacetsFromRecipeStatic(req.recipe, req.goal || "plug_fill");
       Object.assign(resolvedFilters, derived.filters);
+      Object.assign(resolvedNumeric, derived.numeric_targets);
       secGeoms = derived.secondary_geometries;
       secModes = derived.secondary_modes;
       hasPulsed = derived.has_pulsed_or_trim;
       configSummary = derived.summary;
     }
 
+    if (req.numeric_targets && typeof req.numeric_targets === "object") {
+      ["freq_mhz", "pressure_torr", "temp_c", "aspect_ratio"].forEach((nk) => {
+        const nv = req.numeric_targets[nk];
+        if (nv !== null && nv !== undefined && nv !== "") resolvedNumeric[nk] = Number(nv);
+      });
+      if (!req.recipe && !req.preset_id) {
+        const fIn = req.filters || {};
+        if (resolvedNumeric.freq_mhz != null && (!fIn.rf_regime || fIn.rf_regime === "any")) {
+          resolvedFilters.rf_regime = resolvedNumeric.freq_mhz >= 20.0 ? "vhf_27mhz" : "hf_13mhz";
+        }
+        if (resolvedNumeric.pressure_torr != null && (!fIn.pressure_regime || fIn.pressure_regime === "any")) {
+          const pv = resolvedNumeric.pressure_torr;
+          resolvedFilters.pressure_regime = pv >= 1.5 ? "high_p_torr" : pv >= 0.15 ? "sub_torr" : "low_p_mtorr";
+        }
+        if (resolvedNumeric.temp_c != null && (!fIn.temp_regime || fIn.temp_regime === "any")) {
+          const tv = resolvedNumeric.temp_c;
+          resolvedFilters.temp_regime = tv >= 450.0 ? "high_t_450_650c" : tv >= 200.0 ? "mid_t_200_449c" : "low_t_rt_200c";
+        }
+      }
+    }
+
+    const numParts = [];
+    if (resolvedNumeric.freq_mhz != null) numParts.push(`${resolvedNumeric.freq_mhz} MHz`);
+    if (resolvedNumeric.pressure_torr != null) numParts.push(`${resolvedNumeric.pressure_torr} Torr`);
+    if (resolvedNumeric.temp_c != null) numParts.push(`${resolvedNumeric.temp_c} °C`);
+    if (resolvedNumeric.aspect_ratio != null) numParts.push(`AR ${resolvedNumeric.aspect_ratio}:1`);
+
     if (req.filters && typeof req.filters === "object") {
       Object.entries(req.filters).forEach(([k, v]) => {
         if (k in resolvedFilters && v) resolvedFilters[k] = String(v);
       });
       if (!req.recipe && !req.preset_id) {
-        const activeParts = Object.values(resolvedFilters)
+        const activeCats = Object.values(resolvedFilters)
           .filter((v) => v && v !== "any")
           .map((v) => KB_SHORT_REASON_LABELS[v] || v);
-        if (activeParts.length) configSummary = `Configuration Filter · ${activeParts.join(" + ")}`;
+        const combined = [...numParts, ...activeCats].slice(0, 6);
+        if (combined.length) configSummary = `Custom Configuration · ${combined.join(" · ")}`;
       }
+    } else if (numParts.length && !req.recipe && !req.preset_id) {
+      configSummary = `Numeric Window · ${numParts.join(" · ")}`;
+    }
+
+    const anchorPaper = req.similar_to_paper_id
+      ? lit.find((p) => p.id === req.similar_to_paper_id) || null
+      : null;
+    if (anchorPaper) {
+      configSummary = `Similar Papers to [${anchorPaper.id}] · ${anchorPaper.title.slice(0, 64)}`;
     }
 
     const queryStr = String(req.query || "");
     const domain = String(req.domain || "all");
-    const topK = Math.max(1, Math.min(120, Number(req.top_k || 24)));
+    const topK = Math.max(1, Math.min(140, Number(req.top_k || 24)));
     const tokens = queryStr.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-    const lit = (D.kb && D.kb.literature) || [];
     const figs = (D.kb && D.kb.figures) || [];
     const rules = (D.brain && D.brain.literature_logic_rules) || [];
     const dsMap = D.datasets || {};
@@ -882,13 +1107,18 @@
     });
 
     const scoredPapers = [];
+    const hasNumeric = Object.keys(resolvedNumeric).length > 0;
     lit.forEach((p) => {
+      if (anchorPaper && p.id === anchorPaper.id) return;
       if (domain !== "all" && p.domain !== domain) return;
       if (tokens.length) {
-        const hay = `${p.id || ""} ${p.title || ""} ${p.citation || ""} ${p.takeaway || ""} ${(p.tags || []).join(" ")} ${(p.config_profile && p.config_profile.window_summary) || ""}`.toLowerCase();
+        const nw = (p.config_profile && p.config_profile.numeric_windows) || {};
+        const hay = `${p.id || ""} ${p.title || ""} ${p.citation || ""} ${p.takeaway || ""} ${(p.tags || []).join(" ")} ${(p.config_profile && p.config_profile.window_summary) || ""} ${(nw.key_metrics || []).join(" ")}`.toLowerCase();
         if (!tokens.every((t) => hay.includes(t))) return;
       }
-      const sc = scorePaperForConfigStatic(p, resolvedFilters, secGeoms, secModes, hasPulsed);
+      const sc = anchorPaper
+        ? scorePaperSimilarityStatic(anchorPaper, p)
+        : scorePaperForConfigStatic(p, resolvedFilters, hasNumeric ? resolvedNumeric : null, secGeoms, secModes, hasPulsed);
       const pid = p.id;
       const pFigs = (figsByPaper[pid] || []).map((f) => ({ id: f.id, title: f.title, category: f.category || "" }));
       scoredPapers.push({
@@ -898,6 +1128,7 @@
         extrapolation_notes: sc.extrapolation_notes,
         regime_fidelity: sc.regime_fidelity,
         window_summary: sc.window_summary,
+        numeric_windows: sc.numeric_windows,
         linked_dataset_ids: dsByPaper[pid] || [],
         linked_figures: pFigs,
       });
@@ -913,11 +1144,13 @@
 
     const limitedPapers = scoredPapers.slice(0, topK);
     const topPaperScores = {};
-    limitedPapers.slice(0, 14).forEach((p) => {
+    limitedPapers.slice(0, 16).forEach((p) => {
       topPaperScores[p.id] = p.relevance_score;
     });
+    if (anchorPaper) topPaperScores[anchorPaper.id] = 98.0;
 
     const includeOwner =
+      !anchorPaper &&
       (resolvedFilters.pressure_regime === "high_p_torr" || resolvedFilters.pressure_regime === "any") &&
       (resolvedFilters.geometry === "via_hole_3d" || resolvedFilters.geometry === "har_ge_8" || resolvedFilters.geometry === "any") &&
       !tokens.length;
@@ -934,8 +1167,8 @@
         if (prov === "measured_owner" && includeOwner) {
           rowScore = 96.0;
         } else if (tokens.length) {
-          const rowHay = Object.values(r).map((v) => String(v)).join(" ").toLowerCase();
-          if (tokens.every((t) => rowHay.includes(t))) rowScore = Math.max(rowScore, 82.0);
+          const rowHay = `${dsFull.title || ""} ${Object.values(r).map((v) => String(v)).join(" ")}`.toLowerCase();
+          if (tokens.every((t) => rowHay.includes(t))) rowScore = Math.max(rowScore, 84.0);
         }
         if (rowScore <= 0.0) return;
         const summaryPairs = metricCols
@@ -953,23 +1186,34 @@
         });
       });
     });
-    matchedRows.sort((a, b) => b.relevance_score - a.relevance_score);
+    matchedRows.sort((a, b) => {
+      if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score;
+      if (b.dataset_id !== a.dataset_id) return b.dataset_id.localeCompare(a.dataset_id);
+      return b.row_label.localeCompare(a.row_label);
+    });
 
     const topPids = new Set(limitedPapers.slice(0, 12).map((p) => p.id));
     const matchedFigs = figs.filter((f) => topPids.has(f.paper_id)).slice(0, 8);
     const matchedRules = rules.filter((r) => (r.paper_ids || []).some((pid) => topPids.has(pid)));
+    const totalBenchmarkRows = allLoadedDs.reduce((acc, ds) => acc + (ds.rows ? ds.rows.length : 0), 0);
 
     return {
       config_summary: configSummary,
       active_filters: resolvedFilters,
+      active_numeric_targets: resolvedNumeric,
       secondary_geometries: secGeoms,
       secondary_modes: secModes,
+      similar_to_paper_id: anchorPaper ? anchorPaper.id : null,
       query: queryStr,
       domain,
+      total_corpus_papers: lit.length,
+      total_benchmark_datasets: allLoadedDs.length,
+      total_benchmark_rows: totalBenchmarkRows,
       total_matching_papers: scoredPapers.length,
       returned_paper_count: limitedPapers.length,
+      configuration_brief: buildConfigBriefStatic(configSummary, limitedPapers, matchedRows),
       papers: limitedPapers,
-      matched_dataset_rows: matchedRows.slice(0, 12),
+      matched_dataset_rows: matchedRows.slice(0, 16),
       matched_figures: matchedFigs,
       matched_rules: matchedRules,
     };
@@ -1350,6 +1594,7 @@
             if (sp.get("q") && !reqPayload.query) reqPayload.query = sp.get("q");
             if (sp.get("domain") && !reqPayload.domain) reqPayload.domain = sp.get("domain");
             if (sp.get("preset_id") && !reqPayload.preset_id) reqPayload.preset_id = sp.get("preset_id");
+            if (sp.get("similar_to_paper_id") && !reqPayload.similar_to_paper_id) reqPayload.similar_to_paper_id = sp.get("similar_to_paper_id");
             if (sp.get("top_k") && !reqPayload.top_k) reqPayload.top_k = Number(sp.get("top_k"));
             const fKeys = ["rf_regime", "pressure_regime", "temp_regime", "chemistry", "geometry", "process_mode", "method"];
             const qFilters = {};
@@ -1357,6 +1602,12 @@
               if (sp.get(fk)) qFilters[fk] = sp.get(fk);
             });
             if (Object.keys(qFilters).length) reqPayload.filters = { ...(reqPayload.filters || {}), ...qFilters };
+            const nKeys = ["freq_mhz", "pressure_torr", "temp_c", "aspect_ratio"];
+            const qNum = {};
+            nKeys.forEach((nk) => {
+              if (sp.get(nk) !== null && sp.get(nk) !== "") qNum[nk] = Number(sp.get(nk));
+            });
+            if (Object.keys(qNum).length) reqPayload.numeric_targets = { ...(reqPayload.numeric_targets || {}), ...qNum };
           }
           return searchKnowledgeBase(D, reqPayload);
         }

@@ -321,15 +321,33 @@ button {
 
 .panels-stack {
   display: grid;
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 .panels-stack > [role="tabpanel"] {
   grid-area: 1 / 1;
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 /* Put spacing on child wrapper, NEVER on [role="tabpanel"] directly (hidden="until-found" rule) */
 .panel-inner {
   padding-block-start: 1rem;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.panel-inner > .card,
+.wm-inline-grid > *,
+.split-grid > *,
+.rec-card {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+canvas {
+  max-inline-size: 100%;
 }
 
 /* Grid Layouts */
@@ -952,6 +970,8 @@ dialog::backdrop {
   padding: 0.6rem 0.75rem;
   border-radius: 0.45rem;
   border: 1px solid var(--border);
+  max-inline-size: 100%;
+  overflow-x: auto;
   background: var(--surface-alt);
   font-size: 0.76rem;
   line-height: 1.4;
@@ -1622,7 +1642,8 @@ dialog::backdrop {
 }
 
 .config-facet-grid select,
-.config-facet-grid input[type="search"] {
+.config-facet-grid input[type="search"],
+.config-numeric-strip input[type="text"] {
   padding: 0.36rem 0.52rem;
   border-radius: 0.4rem;
   border: 1px solid var(--border);
@@ -1630,6 +1651,83 @@ dialog::backdrop {
   color: var(--text);
   font: inherit;
   font-size: 0.79rem;
+}
+
+.config-numeric-strip {
+  margin: 0 0 0.6rem 0;
+  padding: 0.5rem 0.65rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.48rem;
+  background: color-mix(in srgb, var(--surface-alt) 65%, var(--surface));
+}
+
+.config-numeric-strip legend {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand);
+  padding-inline: 0.35rem;
+}
+
+.config-numeric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 0.5rem;
+}
+
+.config-numeric-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.config-numeric-strip input[aria-invalid="true"] {
+  border-color: var(--err, #ef4444);
+}
+
+.similar-anchor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.48rem 0.72rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 55%, var(--border));
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface-alt));
+  font-size: 0.78rem;
+  margin-block-end: 0.55rem;
+}
+
+.config-brief-card {
+  padding: 0.68rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--border));
+  border-inline-start: 4px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 7%, var(--surface-alt));
+  margin-block-end: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  font-size: 0.79rem;
+}
+
+.config-brief-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 0.65rem;
+}
+
+.config-brief-list {
+  margin: 0.2rem 0 0;
+  padding-inline-start: 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+  font-size: 0.76rem;
+  color: var(--muted);
 }
 
 .config-summary-banner {
@@ -2159,4 +2257,108 @@ progress.sprint-progress::-moz-progress-bar {
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   Native <progress> Bar for Async LOOCV & Open-Source Quantum MD Jobs
+   (modern-web-guidance: `progress`)
+   ========================================================================== */
+progress.pang-progress {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  inline-size: 100%;
+  block-size: 8px;
+  --progress-bar-radius: 1e5px;
+  --progress-bar-track: color-mix(in srgb, var(--border) 70%, var(--surface-alt));
+  --progress-bar-fill: var(--brand);
+  --progress-bar-indeterminate-size: 32%;
+  --progress-bar-indeterminate-animation-duration: 1.4s;
+  border-radius: var(--progress-bar-radius);
+  background: var(--progress-bar-track);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.14);
+  container-type: inline-size;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  progress.pang-progress {
+    --progress-bar-indeterminate-animation-duration: 10s;
+  }
+}
+
+progress.pang-progress:dir(rtl) {
+  --progress-bar-indeterminate-animation: progress-bar-indeterminate var(--progress-bar-indeterminate-animation-duration) infinite linear reverse;
+}
+
+progress.pang-progress:indeterminate {
+  --progress-bar-animation: var(
+    --progress-bar-indeterminate-animation,
+    progress-bar-indeterminate var(--progress-bar-indeterminate-animation-duration) infinite linear
+  );
+}
+
+progress.pang-progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress.pang-progress::-webkit-progress-value {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  transition: inline-size 0.25s ease;
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+progress.pang-progress::-moz-progress-bar {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  transition: inline-size 0.25s ease;
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+@keyframes progress-bar-indeterminate {
+  from, to {
+    inline-size: var(--progress-bar-indeterminate-size);
+    margin-right: auto;
+  }
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 100cqi;
+  }
+}
+
+.qm-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  font-size: 0.78rem;
+}
+
+.qm-control-bar select {
+  padding: 0.24rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.76rem;
+}
+
+.async-job-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.async-job-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-block-size: 1.1em;
+}
+
 

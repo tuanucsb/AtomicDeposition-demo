@@ -429,6 +429,11 @@
               lp.atomistic_reaxff
                 ? `<strong>3D Atomistic Relaxation (${esc(lp.atomistic_reaxff.force_field)}) + LAMMPS ReaxFF Deck (${esc(lp.atomistic_reaxff.lammps_script_lines)} lines):</strong>
                    <div class="mono" style="margin-block:0.25rem;">${esc(lp.atomistic_reaxff.archetype_label)} · ${esc(lp.atomistic_reaxff.n_atoms)} atoms · E=${esc(lp.atomistic_reaxff.lowest_energy_kcal_mol)} kcal/mol · ρ_MD=${esc(lp.atomistic_reaxff.packing_density_g_cm3)} g/cm³</div>
+                   ${
+                     lp.atomistic_reaxff.xtb_quantum_md
+                       ? `<div class="mono" style="margin-block:0.25rem; color:var(--ok);"><b>Real ${esc(lp.atomistic_reaxff.xtb_quantum_md.method)} QM MD (tblite+ASE):</b> Gap=${esc(lp.atomistic_reaxff.xtb_quantum_md.homo_lumo_gap_ev)} eV · μ=${esc(lp.atomistic_reaxff.xtb_quantum_md.dipole_debye)} D · ⟨BO_CC⟩=${esc(lp.atomistic_reaxff.xtb_quantum_md.mean_cc_wiberg_order)} · RMSD=${esc(lp.atomistic_reaxff.xtb_quantum_md.final_rmsd_a)} Å (${esc(lp.atomistic_reaxff.xtb_quantum_md.elapsed_ms)} ms)</div>`
+                       : ""
+                   }
                    <pre class="mono" style="margin:0; padding:0.45rem; border-radius:0.4rem; background:var(--surface-alt); border:1px solid var(--border); font-size:0.78rem; max-block-size:135px; overflow:auto;">${esc(lp.atomistic_reaxff.lammps_script_preview)}</pre>`
                 : ""
             }
@@ -445,6 +450,7 @@
     const diff = state.s5Diff || gov.latest_diff_vs_v1 || {};
     const disc = gov.residual_discovery || {};
     const commits = gov.commits || [];
+    const activeRules = (gov.active_commit && gov.active_commit.rules) || [];
     const bo = state.s5Bo;
 
     return `
@@ -480,6 +486,16 @@
               )
               .join("")}
           </ul>
+          ${
+            activeRules.length
+              ? `<div style="margin-block-start:0.45rem;"><strong>Active KB Rules (${activeRules.length}):</strong>
+                   <ul style="margin:0.2rem 0 0; padding-inline-start:1.15rem;">
+                     ${activeRules
+                       .map((r) => `<li><span class="mono"><b>${esc(r.rule_id)}</b></span> [${esc(r.ip_tier || "PUBLIC")}] — ${esc(r.title || "")} <code class="mono">${esc(r.condition_expr || "")}</code></li>`)
+                       .join("")}
+                   </ul></div>`
+              : ""
+          }
         </div>
         <div>
           ${
